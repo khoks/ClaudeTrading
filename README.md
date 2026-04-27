@@ -73,7 +73,8 @@ claude
 .claude/skills/      # 13 skills (configurator, tick, daily)
 .claude/
   settings.json.example  # recommended permission allowlist for scheduled sessions
-lib/                 # bash helpers: env, date (cross-platform), alpaca, pool, calendar
+lib/                 # bash helpers: env, date (cross-platform), tz (TZ-aware cron),
+                     #   alpaca, pool, calendar
 persistence/
   config/
     strategy_defaults.json         # COMMITTED — shipped baseline tunables

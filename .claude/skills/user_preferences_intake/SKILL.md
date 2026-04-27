@@ -38,10 +38,13 @@ User can run this alone (e.g. `/user_preferences_intake`) to add stocks or adjus
 
 ## Trigger phrases for AskUserQuestion answers
 
-- For ticker input: header "Tickers", free-text via "Other".
-- For risk: 3 options.
-- For cap: 4 options (`$500`, `$1000`, `$2500`, "Other").
-- For fractional: 2 options (yes/no).
+- **Tickers** (header "Tickers"). Always offer at least these options, free-text via "Other":
+  - `"Tech starter (NVDA, TSLA, GOOG)"` — three high-conviction US large-caps. Sensible cold-start basket for an operator with no specific opinion. **This is the recommended default for new operators.**
+  - `"User-typed list"` (via Other) — comma-separated tickers.
+  - Optionally one or two more pre-made baskets (mega-cap tech, broad ETFs, sector-specific) if the operator's interests are known.
+- **Risk**: 3 options — `conservative`, `moderate`, `aggressive`.
+- **Cap**: 4 options — `$500`, `$1000`, `$2500`, "Other".
+- **Fractional**: 2 options — yes/no.
 
 ## Reuse
 

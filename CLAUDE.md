@@ -29,7 +29,7 @@ This profile section is **not normative for future contributors** — it's conte
 
 ## Repo map (quick)
 
-- `lib/` — shared bash helpers (`env.sh`, `date.sh`, `alpaca.sh`, `pool.sh`, `calendar.sh`). `lib/date.sh` is the cross-platform `date` shim — Linux/Git Bash/macOS-with-`gdate` use GNU; macOS without `gdate` uses BSD with translated flags. Always go through the `date_*` helpers, never call `date -d` directly.
+- `lib/` — shared bash helpers (`env.sh`, `date.sh`, `tz.sh`, `alpaca.sh`, `pool.sh`, `calendar.sh`). `lib/date.sh` is the cross-platform `date` shim. `lib/tz.sh` translates the PT-based market-hours cron to the operator's local TZ via `market_cron <cadence>` (uses POSIX TZ format `PST8PDT` for portability). Always go through the `date_*` / `market_cron` helpers, never bake TZ-specific values into scripts.
 - `.claude/skills/` — 13 skills (see catalog below).
 - `persistence/` — runtime state. Most files are gitignored per-operator; `strategy_defaults.json` is the committed baseline.
 - `.env` (local-only) — Alpaca creds.

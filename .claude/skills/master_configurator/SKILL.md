@@ -18,6 +18,11 @@ Activates the ClaudeTrading system from cold. This is the single entry point a u
 
 - `.env` (or runner-injected env vars) contains `ALPACA_KEY`, `ALPACA_SECRET`.
 - `lib/env.sh` is sourceable from `$REPO_ROOT/lib/env.sh`.
+- **`mcp__scheduled-tasks` MCP is available.** Verify with a read-only call before doing real work:
+  ```
+  mcp__scheduled-tasks__list_scheduled_tasks  # must succeed (returns empty list on a fresh setup)
+  ```
+  If the tool errors with "not available" or similar, abort with a clear message: this Claude Code environment lacks the scheduled-tasks MCP, which the configurator needs to register the trading and reporting cron jobs. The operator needs to enable it (or upgrade their Claude Code version) before retrying.
 
 ## Workflow
 
@@ -52,12 +57,17 @@ Activates the ClaudeTrading system from cold. This is the single entry point a u
    - Invoke skill `prebuilt_strategy_configurator` — enables/disables/tunes trailing_stop, ladder_buys, wheel. Writes `persistence/config/strategy_defaults.json`.
 4. **Pick the tick cadence.** Ask the user (AskUserQuestion) how often master_trading should fire during market hours. Sensible options: 5, 10, 15, 30 min. Store the chosen value as `$TICK_CADENCE_MIN` for use in steps 5 and 6.
 
-5. **Activate schedules.** Use `mcp__scheduled-tasks__create_scheduled_task` to register two cron triggers, both timezone `America/Los_Angeles`:
-   - `*/$TICK_CADENCE_MIN 6-12 * * 1-5` → runs `/master_trading`. Skips on holidays via `is_market_open` in the skill body.
-   - `0 7 * * 1-5` → runs `/reporting`.
-   For each task, pass these env vars so the remote agent can authenticate (if the chosen MCP supports env injection — `mcp__scheduled-tasks` currently does not, so the prompt itself sources `.env` from `$REPO_ROOT/lib/env.sh`):
-   - `ALPACA_KEY`, `ALPACA_SECRET`, `ALPACA_BASE`, `ALPACA_DATA_BASE`
-   (Reattach the values from the local `.env` at activation time. Verify the tool's parameter shape with ToolSearch before calling.)
+5. **Activate schedules.** Compute the master-tick cron expression from the operator's local timezone — `mcp__scheduled-tasks` evaluates cron in local time, not UTC, so a non-PT operator needs the cron's hour range shifted to their local equivalent of US market hours.
+   ```bash
+   source "$REPO_ROOT/lib/tz.sh"
+   MASTER_CRON=$(market_cron "$TICK_CADENCE_MIN")     # e.g. "*/15 9-15 * * 1-5" for ET
+   ```
+   If `market_cron` errors (operator's TZ has a half-hour offset from PT, e.g. IST, or wraps past midnight), fall back to AskUserQuestion offering: (a) "I'll set my machine TZ to a US zone and re-run", or (b) "Let me type a cron expression manually".
+
+   Then register two cron triggers via `mcp__scheduled-tasks__create_scheduled_task`:
+   - `$MASTER_CRON` → runs `/master_trading`. Skips on holidays via `is_market_open` in the skill body.
+   - `0 7 * * 1-5` → runs `/reporting`. **Note:** the report cron is also local-time. For non-PT operators, 7 AM local time is fine (it's a personal-diagnostic schedule, not market-aligned).
+   The scheduled task prompt itself should `cd $REPO_ROOT` then invoke the slash command, since `mcp__scheduled-tasks` does not support env-var injection — `lib/env.sh` will source `.env` from the local repo at fire time.
 6. **Persist activation.** Write `persistence/config/activation.json`. The `tick_cadence_minutes` field is what `lib/calendar.sh::is_last_tick_of_trading_day` reads — keep it in sync with the cron expression in step 5:
    ```json
    {
@@ -74,6 +84,7 @@ Activates the ClaudeTrading system from cold. This is the single entry point a u
 
 8. **Print a confirmation summary** to the user. Include:
    - Number of stocks in pool, enabled strategies, chosen cadence, both schedule IDs, next expected trigger time.
+   - **Resolved cron expression and timezone**, e.g.: "Local TZ detected as `EDT`. Master tick will fire `*/15 9-15 * * 1-5` (every 15 min, 09:00–15:45 your local time, equivalent to 06:00–12:45 PT — covering US market hours from pre-market through 15 min before close)."
    - **Disclose the `.claude/settings.json` allowlist** that was bootstrapped (or is currently active) — the user should know what permissions are pre-granted to scheduled-tick sessions:
      - `Bash` (any command — needed because scheduled sessions run compound `&&` chains the granular allowlist can't pre-match)
      - `Bash(<cmd>:*)` granular entries documenting intent (curl, jq, git, gh, bash, source, etc.)

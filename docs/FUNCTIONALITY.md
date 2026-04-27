@@ -301,14 +301,16 @@ Per-stock state including last buy/sell, watermarks, stop losses, per-strategy s
 
 ## 9. Scheduling
 
-Two scheduled tasks, both in user's local timezone (must be PT for the cron expressions to align with US market hours):
+Two scheduled tasks, both evaluated in the operator's **local timezone** by `mcp__scheduled-tasks`. `master_configurator` auto-computes the cron expression for the operator's local TZ via `lib/tz.sh::market_cron`, so a non-PT operator gets the equivalent local hour range (e.g., ET operators get `*/15 9-15 * * 1-5` covering 09:00–15:45 ET = 06:00–12:45 PT).
 
-| Task ID | Cron | Cadence | Purpose |
+| Task ID | Cron (PT example) | Cadence | Purpose |
 |---|---|---|---|
-| `claudetrading-master-tick` | `*/15 6-12 * * 1-5` | Every 15 min, 06:00–12:45 PT, Mon–Fri | Runs `/master_trading` |
-| `claudetrading-daily-report` | `0 7 * * 1-5` | 07:00 PT, Mon–Fri | Runs `/reporting` |
+| `claudetrading-master-tick` | `*/15 6-12 * * 1-5` | Every 15 min, 06:00–12:45 local (= US market hours minus last 15 min) | Runs `/master_trading` |
+| `claudetrading-daily-report` | `0 7 * * 1-5` | 07:00 local time, Mon–Fri | Runs `/reporting` |
 
 Both registered via `mcp__scheduled-tasks__create_scheduled_task` during `/master_configurator`. The task IDs are recorded in `activation.json.schedule_ids`.
+
+**Half-hour offset TZs** (IST, NPT, etc.) and **TZs that wrap past midnight** are not auto-handled — `market_cron` errors and the configurator falls back to asking the operator for a manual cron expression.
 
 > **Cadence-only changes** can be made via `mcp__scheduled-tasks__update_scheduled_task` with a new `cronExpression`. Remember to also update `activation.json.tick_cadence_minutes` so `is_last_tick_of_trading_day` stays correct.
 

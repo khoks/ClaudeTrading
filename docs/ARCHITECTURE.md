@@ -325,7 +325,17 @@ Market hours and trading-day math. Sources `lib/env.sh` + `lib/alpaca.sh` first.
 | `trading_days_ago <iso_ts>` | Integer count of trading days strictly between the date of `<iso_ts>` and today (excluding both endpoints) |
 | `trading_days_old_enough <iso_ts> <threshold>` | Exit 0 if `trading_days_ago ≥ threshold`. Convention: `threshold=2` for the H1B floor. |
 
-### 6.5 `lib/pool.sh`
+### 6.5 `lib/tz.sh`
+
+Translates the PT-based market-hours cron to the operator's local timezone, since `mcp__scheduled-tasks` evaluates cron in local time. Uses POSIX TZ format (`PST8PDT`) for portability — IANA names like `America/Los_Angeles` don't resolve on Git Bash's mingw `date`.
+
+| Function | Purpose |
+|---|---|
+| `_tz_offset_minutes [<zone>]` | UTC offset of `<zone>` (or system if empty) in minutes |
+| `market_cron <cadence_minutes>` | Prints a 5-field cron expression that fires every `<cadence>` minutes during the local-TZ equivalent of 06:00–12:45 PT, Mon–Fri. Returns non-zero with a stderr message for half-hour-offset TZs (IST etc.) or windows that wrap past midnight. |
+| `market_cron_describe <cadence_minutes>` | Human-readable summary for the configurator's confirmation output |
+
+### 6.6 `lib/pool.sh`
 
 Read/write `persistence/pool.json` via jq. All writes are atomic (write-temp + mv).
 
