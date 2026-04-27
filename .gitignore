@@ -1,0 +1,24 @@
+# Secrets — NEVER commit
+.env
+.env.local
+*.key
+*.pem
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor swap files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Claude session-local junk (settings.local.json may contain user-specific overrides)
+.claude/settings.local.json
+
+# Note: persistence/snapshots/** ARE intentionally committed.
+# The remote scheduled agent's filesystem is ephemeral, so trading state
+# (snapshots, pool.json, config/*.json, reports) lives in the repo itself.

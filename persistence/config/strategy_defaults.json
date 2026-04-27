@@ -1,0 +1,16 @@
+{
+  "trailing_stop": {
+    "enabled": true,
+    "drop_percent": 5,
+    "raise_percent": 10
+  },
+  "ladder_buys": {
+    "enabled": true,
+    "drop_percent": 18,
+    "buy_amount_usd": 1000
+  },
+  "wheel": {
+    "enabled": false,
+    "comment": "requires Alpaca options account approval before enabling"
+  }
+}
