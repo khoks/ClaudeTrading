@@ -4,6 +4,12 @@ Autonomous Alpaca paper-trading system driven by Claude Code skills + Anthropic 
 
 > **Paper trading only.** Hard-coded to `https://paper-api.alpaca.markets/v2`. No live-money path exists in this repo. The shipped strategies are calibrated for an aggressive paper-trading profile and are intended as a starting point — retune via `/master_configurator` before relying on them.
 
+## At a glance
+
+![ClaudeTrading at a glance](docs/img/at-a-glance.svg)
+
+**What you get out:** strategies that scale into positions on the way down, scale out on the way up, and protect with trailing stops — all gated behind a configurable cooldown so you stay clear of pattern-day-trader and second-income classifications. Trading state stays on your machine; nothing leaves your laptop unless you decide to back it up.
+
 ## How it works
 
 On a configured cadence during US market hours (Mon–Fri 6:30 AM – 1:00 PM PT), a scheduled Claude session fires `/master_trading`. The skill:
@@ -21,6 +27,10 @@ On a configured cadence during US market hours (Mon–Fri 6:30 AM – 1:00 PM PT
 A separate schedule fires `/reporting` daily at 7 AM PT, producing an HTML diagnostic in `persistence/reports/`.
 
 ## Setup
+
+![Setup in 5 steps](docs/img/setup.svg)
+
+`/master_configurator` does the rest: bootstraps your gitignored config files from the shipped `.example` templates, walks you through pool / risk / caps / cadence, registers the cron schedule, discloses the permission allowlist it set up. After it finishes you're done — ticks fire automatically.
 
 ### Prerequisites
 
