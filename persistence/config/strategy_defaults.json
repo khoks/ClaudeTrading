@@ -1,13 +1,13 @@
 {
   "trailing_stop": {
     "enabled": true,
-    "drop_percent": 5,
+    "drop_percent": 7,
     "raise_percent": 10
   },
   "ladder_buys": {
     "enabled": true,
-    "drop_percent": 18,
-    "buy_amount_usd": 1000
+    "drop_percent": 12,
+    "buy_amount_usd": 500
   },
   "wheel": {
     "enabled": false,

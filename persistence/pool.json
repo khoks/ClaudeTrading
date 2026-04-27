@@ -1,4 +1,537 @@
 {
-  "stocks": [],
-  "last_updated": null
+  "stocks": [
+    {
+      "symbol": "AMAT",
+      "added_at": "2026-04-27T07:54:41Z",
+      "last_buy": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "last_sell": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "high_watermark": null,
+      "stop_loss": {
+        "price": null,
+        "trail_percent": null
+      },
+      "strategy_config": {
+        "trailing_stop": {},
+        "ladder_buys": {},
+        "wheel": {}
+      },
+      "total_profit_usd": 0,
+      "total_invested_usd": 0
+    },
+    {
+      "symbol": "ASX",
+      "added_at": "2026-04-27T07:54:41Z",
+      "last_buy": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "last_sell": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "high_watermark": null,
+      "stop_loss": {
+        "price": null,
+        "trail_percent": null
+      },
+      "strategy_config": {
+        "trailing_stop": {},
+        "ladder_buys": {},
+        "wheel": {}
+      },
+      "total_profit_usd": 0,
+      "total_invested_usd": 0
+    },
+    {
+      "symbol": "AXTI",
+      "added_at": "2026-04-27T07:54:41Z",
+      "last_buy": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "last_sell": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "high_watermark": null,
+      "stop_loss": {
+        "price": null,
+        "trail_percent": null
+      },
+      "strategy_config": {
+        "trailing_stop": {},
+        "ladder_buys": {},
+        "wheel": {}
+      },
+      "total_profit_usd": 0,
+      "total_invested_usd": 0
+    },
+    {
+      "symbol": "BE",
+      "added_at": "2026-04-27T07:54:41Z",
+      "last_buy": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "last_sell": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "high_watermark": null,
+      "stop_loss": {
+        "price": null,
+        "trail_percent": null
+      },
+      "strategy_config": {
+        "trailing_stop": {},
+        "ladder_buys": {},
+        "wheel": {}
+      },
+      "total_profit_usd": 0,
+      "total_invested_usd": 0
+    },
+    {
+      "symbol": "BNTX",
+      "added_at": "2026-04-27T07:54:42Z",
+      "last_buy": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "last_sell": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "high_watermark": null,
+      "stop_loss": {
+        "price": null,
+        "trail_percent": null
+      },
+      "strategy_config": {
+        "trailing_stop": {},
+        "ladder_buys": {},
+        "wheel": {}
+      },
+      "total_profit_usd": 0,
+      "total_invested_usd": 0
+    },
+    {
+      "symbol": "CEG",
+      "added_at": "2026-04-27T07:54:42Z",
+      "last_buy": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "last_sell": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "high_watermark": null,
+      "stop_loss": {
+        "price": null,
+        "trail_percent": null
+      },
+      "strategy_config": {
+        "trailing_stop": {},
+        "ladder_buys": {},
+        "wheel": {}
+      },
+      "total_profit_usd": 0,
+      "total_invested_usd": 0
+    },
+    {
+      "symbol": "KLAC",
+      "added_at": "2026-04-27T07:54:42Z",
+      "last_buy": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "last_sell": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "high_watermark": null,
+      "stop_loss": {
+        "price": null,
+        "trail_percent": null
+      },
+      "strategy_config": {
+        "trailing_stop": {},
+        "ladder_buys": {},
+        "wheel": {}
+      },
+      "total_profit_usd": 0,
+      "total_invested_usd": 0
+    },
+    {
+      "symbol": "PLAB",
+      "added_at": "2026-04-27T07:54:42Z",
+      "last_buy": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "last_sell": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "high_watermark": null,
+      "stop_loss": {
+        "price": null,
+        "trail_percent": null
+      },
+      "strategy_config": {
+        "trailing_stop": {},
+        "ladder_buys": {},
+        "wheel": {}
+      },
+      "total_profit_usd": 0,
+      "total_invested_usd": 0
+    },
+    {
+      "symbol": "TEM",
+      "added_at": "2026-04-27T07:54:42Z",
+      "last_buy": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "last_sell": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "high_watermark": null,
+      "stop_loss": {
+        "price": null,
+        "trail_percent": null
+      },
+      "strategy_config": {
+        "trailing_stop": {},
+        "ladder_buys": {},
+        "wheel": {}
+      },
+      "total_profit_usd": 0,
+      "total_invested_usd": 0
+    },
+    {
+      "symbol": "VKTX",
+      "added_at": "2026-04-27T07:54:43Z",
+      "last_buy": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "last_sell": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "high_watermark": null,
+      "stop_loss": {
+        "price": null,
+        "trail_percent": null
+      },
+      "strategy_config": {
+        "trailing_stop": {},
+        "ladder_buys": {},
+        "wheel": {}
+      },
+      "total_profit_usd": 0,
+      "total_invested_usd": 0
+    },
+    {
+      "symbol": "CDNS",
+      "added_at": "2026-04-27T07:54:43Z",
+      "last_buy": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "last_sell": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "high_watermark": null,
+      "stop_loss": {
+        "price": null,
+        "trail_percent": null
+      },
+      "strategy_config": {
+        "trailing_stop": {},
+        "ladder_buys": {},
+        "wheel": {}
+      },
+      "total_profit_usd": 0,
+      "total_invested_usd": 0
+    },
+    {
+      "symbol": "SNPS",
+      "added_at": "2026-04-27T07:54:43Z",
+      "last_buy": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "last_sell": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "high_watermark": null,
+      "stop_loss": {
+        "price": null,
+        "trail_percent": null
+      },
+      "strategy_config": {
+        "trailing_stop": {},
+        "ladder_buys": {},
+        "wheel": {}
+      },
+      "total_profit_usd": 0,
+      "total_invested_usd": 0
+    },
+    {
+      "symbol": "LRCX",
+      "added_at": "2026-04-27T07:54:43Z",
+      "last_buy": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "last_sell": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "high_watermark": null,
+      "stop_loss": {
+        "price": null,
+        "trail_percent": null
+      },
+      "strategy_config": {
+        "trailing_stop": {},
+        "ladder_buys": {},
+        "wheel": {}
+      },
+      "total_profit_usd": 0,
+      "total_invested_usd": 0
+    },
+    {
+      "symbol": "ANET",
+      "added_at": "2026-04-27T07:54:43Z",
+      "last_buy": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "last_sell": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "high_watermark": null,
+      "stop_loss": {
+        "price": null,
+        "trail_percent": null
+      },
+      "strategy_config": {
+        "trailing_stop": {},
+        "ladder_buys": {},
+        "wheel": {}
+      },
+      "total_profit_usd": 0,
+      "total_invested_usd": 0
+    },
+    {
+      "symbol": "EQIX",
+      "added_at": "2026-04-27T07:54:43Z",
+      "last_buy": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "last_sell": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "high_watermark": null,
+      "stop_loss": {
+        "price": null,
+        "trail_percent": null
+      },
+      "strategy_config": {
+        "trailing_stop": {},
+        "ladder_buys": {},
+        "wheel": {}
+      },
+      "total_profit_usd": 0,
+      "total_invested_usd": 0
+    },
+    {
+      "symbol": "CRWV",
+      "added_at": "2026-04-27T07:54:44Z",
+      "last_buy": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "last_sell": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "high_watermark": null,
+      "stop_loss": {
+        "price": null,
+        "trail_percent": null
+      },
+      "strategy_config": {
+        "trailing_stop": {},
+        "ladder_buys": {},
+        "wheel": {}
+      },
+      "total_profit_usd": 0,
+      "total_invested_usd": 0
+    },
+    {
+      "symbol": "NBIS",
+      "added_at": "2026-04-27T07:54:44Z",
+      "last_buy": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "last_sell": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "high_watermark": null,
+      "stop_loss": {
+        "price": null,
+        "trail_percent": null
+      },
+      "strategy_config": {
+        "trailing_stop": {},
+        "ladder_buys": {},
+        "wheel": {}
+      },
+      "total_profit_usd": 0,
+      "total_invested_usd": 0
+    },
+    {
+      "symbol": "VRT",
+      "added_at": "2026-04-27T07:54:44Z",
+      "last_buy": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "last_sell": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "high_watermark": null,
+      "stop_loss": {
+        "price": null,
+        "trail_percent": null
+      },
+      "strategy_config": {
+        "trailing_stop": {},
+        "ladder_buys": {},
+        "wheel": {}
+      },
+      "total_profit_usd": 0,
+      "total_invested_usd": 0
+    },
+    {
+      "symbol": "DLR",
+      "added_at": "2026-04-27T07:54:44Z",
+      "last_buy": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "last_sell": {
+        "timestamp": null,
+        "price": null,
+        "qty": null,
+        "amount_usd": null
+      },
+      "high_watermark": null,
+      "stop_loss": {
+        "price": null,
+        "trail_percent": null
+      },
+      "strategy_config": {
+        "trailing_stop": {},
+        "ladder_buys": {},
+        "wheel": {}
+      },
+      "total_profit_usd": 0,
+      "total_invested_usd": 0
+    }
+  ],
+  "last_updated": "2026-04-27T07:54:44Z"
 }

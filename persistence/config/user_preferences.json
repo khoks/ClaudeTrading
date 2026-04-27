@@ -1,7 +1,27 @@
 {
-  "risk_tolerance": null,
-  "max_per_trade_usd": 1000,
+  "risk_tolerance": "aggressive",
+  "max_per_trade_usd": 500,
   "fractional_shares": true,
-  "curated_tickers": [],
-  "updated_at": null
+  "curated_tickers": [
+    "AMAT",
+    "ASX",
+    "AXTI",
+    "BE",
+    "BNTX",
+    "CEG",
+    "KLAC",
+    "PLAB",
+    "TEM",
+    "VKTX",
+    "CDNS",
+    "SNPS",
+    "LRCX",
+    "ANET",
+    "EQIX",
+    "CRWV",
+    "NBIS",
+    "VRT",
+    "DLR"
+  ],
+  "updated_at": "2026-04-27T07:54:49Z"
 }
