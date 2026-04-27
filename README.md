@@ -60,6 +60,12 @@ claude
 
 `master_trading` and `reporting` both check `activation.json.configured == true` at the top of every run and exit with a clear error if you skipped the configurator.
 
+## Contributing
+
+Changes to the repo's design, strategy skills, library code, or docs land via pull request — never directly on `main`. The `/change_management` skill (auto-nudged by a `PostToolUse` hook on tracked-file edits) creates a `change/*` branch, opens a PR, and routes the change for owner review. To check if your PR was approved, ask Claude `"is my PR approved?"` and the same skill in sync mode will fetch state and merge the branch back to `main` if the owner has merged it on GitHub.
+
+Repo owner: run `bash .claude/skills/change_management/scripts/setup_branch_protection.sh` once to enforce the gate at the GitHub network layer.
+
 ## Documentation
 
 - [`docs/FUNCTIONALITY.md`](docs/FUNCTIONALITY.md) — what the system does day-to-day: trading-day timeline, the cooldown safety floor, master_trading orchestration, the strategy cards, persistence, reporting, common operations.

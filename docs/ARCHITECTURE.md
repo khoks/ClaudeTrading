@@ -147,6 +147,7 @@ End-to-end for one master_trading invocation:
 | `strategy_wheel` | Tick (disabled) | Cash-secured puts → covered calls (placeholder) | master_trading (skipped while disabled) | n/a |
 | `state_persistence` | Tick | Snapshot + rollup + prune (local only — no git) | master_trading (last step) | `persist.sh` orchestrator → `snapshot_tick.sh`, `snapshot_daily.sh`, `snapshot_weekly.sh`, `prune_tick.sh` |
 | `reporting` | Daily | Generate daily HTML diagnostic (local-only) | Schedule (`claudetrading-daily-report`) or user (`/reporting`) | `generate_report.sh` |
+| `change_management` | Meta | Route tracked-file edits through a PR; sync local back to `main` on merge | The `check_design_change.sh` hook (auto-nudge) or user explicit (`is my PR approved?` / `PR my changes`) | `gh pr create/view`; git plumbing |
 
 ---
 
@@ -376,6 +377,15 @@ Trading-days math uses Alpaca `/v2/calendar` (weekends + holidays automatically 
 Master_trading itself maintains `sold_this_tick` and `bought_this_tick` sets, and filters the buyable set passed to each Phase B strategy. Strategies don't know about each other; only master_trading does.
 
 This is implemented in master_trading's SKILL.md prose (since master_trading is markdown that Claude follows at runtime, not a script). Each tick's Claude session re-reads the SKILL.md, so changes to orchestration rules take effect on the next tick after a commit lands.
+
+### 7.3.5 Change-management gate
+
+Any edit to a tracked file flows through `/change_management` and lands as a PR. The mechanism has two parts:
+
+- **`.claude/hooks/check_design_change.sh`** — a `PostToolUse` hook on `Write|Edit` that checks `git ls-files --error-unmatch <path>`. If the file is tracked AND the operator is on `main`, the hook injects an `additionalContext` reminder for Claude to invoke `/change_management`. On `change/*` branches, the reminder is different ("PR will auto-update; commit + push when ready"). Untracked / gitignored files are silently allowed.
+- **`/change_management` skill** — operates in two modes. **PR mode**: creates `change/<descriptor>-<date>`, moves the work, leaves `main` clean, pushes, opens (or updates) a PR. **Sync mode**: queries `gh pr view` for the current branch's PR; on `MERGED`, switches to `main`, pulls, and deletes the branch.
+
+GitHub branch protection (configured via `scripts/setup_branch_protection.sh`) enforces the gate at the network layer — direct pushes to `main` are rejected for everyone, including the repo owner.
 
 ### 7.4 Permissions
 

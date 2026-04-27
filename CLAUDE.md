@@ -20,6 +20,7 @@ The shipped strategies enforce a **2-trading-day cooldown** between opposite-dir
 6. **No legal or tax advice.** The cooldown is a user-defined heuristic, not a guarantee. Never tell the operator it makes them compliant with FINRA's pattern day trader rule, IRS classification of trading income, or any specific regulation that may apply to their visa, residency, or employment status. Consult a tax / legal advisor.
 7. **`master_configurator` is the only place that activates schedules.** Ad-hoc skill scripts must not call `mcp__scheduled-tasks__create_scheduled_task` directly.
 8. **`wheel` is disabled by default.** Enabling it requires confirmed Alpaca options approval.
+9. **Design / code / strategy changes go through PR review.** Any edit to a tracked file (skills, lib, docs, shipped baselines, CLAUDE.md itself) is routed through `/change_management`, which moves the work to a `change/*` branch and opens a PR for the repo owner to review. The `.claude/hooks/check_design_change.sh` hook nudges Claude to invoke `/change_management` whenever a tracked file is edited on `main`. Direct pushes to `main` are blocked by GitHub branch protection (set up via `scripts/setup_branch_protection.sh`). The owner's own changes also flow through this — branch protection applies uniformly.
 
 ## Operator profile (for the current operator running this clone)
 
@@ -42,6 +43,9 @@ This profile section is **not normative for future contributors** — it's conte
 - `user_preferences_intake` — collects pool tickers, risk, trade caps.
 - `user_custom_strategy_intake` — scaffolds new strategy skills.
 - `prebuilt_strategy_configurator` — enables/tunes the prebuilt strategies.
+
+**Meta tier (governs changes to the repo itself):**
+- `change_management` — auto-PRs design / code / strategy changes for owner review; syncs the local repo back to `main` once a PR is merged.
 
 **Tick tier (schedule-invoked on the configured tick cadence during PT trading hours; cadence in `persistence/config/activation.json`.tick_cadence_minutes):**
 - `master_trading` — orchestrates one tick (Phase A sells → Phase B buys → state_persistence).
