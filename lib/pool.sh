@@ -11,7 +11,13 @@
 #       "last_sell": { "timestamp": null, "price": null, "qty": null, "amount_usd": null },
 #       "high_watermark": null,
 #       "stop_loss":   { "price": null, "trail_percent": null },
-#       "strategy_config": { "trailing_stop": {}, "ladder_buys": {}, "wheel": {} },
+#       "strategy_config": {
+#         "trailing_stop": {},
+#         "ladder_buys": {},
+#         "wheel": {},
+#         "mean_reversion": {},
+#         "profit_take": { "fired_thresholds": [], "baseline_qty": null, "last_baseline_at": null }
+#       },
 #       "total_profit_usd": 0,
 #       "total_invested_usd": 0
 #     }
@@ -64,7 +70,13 @@ pool_add_stock() {
       last_sell: { timestamp: null, price: null, qty: null, amount_usd: null },
       high_watermark: null,
       stop_loss: { price: null, trail_percent: null },
-      strategy_config: { trailing_stop: {}, ladder_buys: {}, wheel: {} },
+      strategy_config: {
+        trailing_stop: {},
+        ladder_buys: {},
+        wheel: {},
+        mean_reversion: {},
+        profit_take: { fired_thresholds: [], baseline_qty: null, last_baseline_at: null }
+      },
       total_profit_usd: 0,
       total_invested_usd: 0
     }] end')
@@ -116,6 +128,26 @@ pool_set_stop_loss() {
   updated=$(pool_read | jq --arg s "$s" --argjson p "$price" --argjson t "$trail" '
     .stocks |= map(if .symbol == $s then
       .stop_loss = { price: $p, trail_percent: $t } else . end)')
+  pool_write "$updated"
+}
+
+# pool_set_profit_take_state <symbol> <fired_thresholds_json> <baseline_qty_or_null> <last_baseline_at_or_empty>
+# Writes the full profit_take state. Pass "null" (literal) for baseline_qty to clear it,
+# or an empty string for last_baseline_at to clear it.
+pool_set_profit_take_state() {
+  local s="$1" fired="$2" bq="$3" ba="$4" updated
+  updated=$(pool_read | jq \
+    --arg s "$s" --argjson f "$fired" \
+    --argjson bq "$bq" --arg ba "$ba" '
+    .stocks |= map(
+      if .symbol == $s then
+        .strategy_config.profit_take = {
+          fired_thresholds: $f,
+          baseline_qty: $bq,
+          last_baseline_at: (if $ba == "" then null else $ba end)
+        }
+      else . end
+    )')
   pool_write "$updated"
 }
 

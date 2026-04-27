@@ -23,7 +23,13 @@
       "strategy_config": {
         "trailing_stop": {},
         "ladder_buys": {},
-        "wheel": {}
+        "wheel": {},
+        "mean_reversion": {},
+        "profit_take": {
+          "fired_thresholds": [],
+          "baseline_qty": null,
+          "last_baseline_at": null
+        }
       },
       "total_profit_usd": 0,
       "total_invested_usd": 500
@@ -51,7 +57,13 @@
       "strategy_config": {
         "trailing_stop": {},
         "ladder_buys": {},
-        "wheel": {}
+        "wheel": {},
+        "mean_reversion": {},
+        "profit_take": {
+          "fired_thresholds": [],
+          "baseline_qty": null,
+          "last_baseline_at": null
+        }
       },
       "total_profit_usd": 0,
       "total_invested_usd": 500
@@ -79,7 +91,13 @@
       "strategy_config": {
         "trailing_stop": {},
         "ladder_buys": {},
-        "wheel": {}
+        "wheel": {},
+        "mean_reversion": {},
+        "profit_take": {
+          "fired_thresholds": [],
+          "baseline_qty": null,
+          "last_baseline_at": null
+        }
       },
       "total_profit_usd": 0,
       "total_invested_usd": 500
@@ -107,7 +125,13 @@
       "strategy_config": {
         "trailing_stop": {},
         "ladder_buys": {},
-        "wheel": {}
+        "wheel": {},
+        "mean_reversion": {},
+        "profit_take": {
+          "fired_thresholds": [],
+          "baseline_qty": null,
+          "last_baseline_at": null
+        }
       },
       "total_profit_usd": 0,
       "total_invested_usd": 500
@@ -135,7 +159,13 @@
       "strategy_config": {
         "trailing_stop": {},
         "ladder_buys": {},
-        "wheel": {}
+        "wheel": {},
+        "mean_reversion": {},
+        "profit_take": {
+          "fired_thresholds": [],
+          "baseline_qty": null,
+          "last_baseline_at": null
+        }
       },
       "total_profit_usd": 0,
       "total_invested_usd": 500
@@ -163,7 +193,13 @@
       "strategy_config": {
         "trailing_stop": {},
         "ladder_buys": {},
-        "wheel": {}
+        "wheel": {},
+        "mean_reversion": {},
+        "profit_take": {
+          "fired_thresholds": [],
+          "baseline_qty": null,
+          "last_baseline_at": null
+        }
       },
       "total_profit_usd": 0,
       "total_invested_usd": 500
@@ -191,7 +227,13 @@
       "strategy_config": {
         "trailing_stop": {},
         "ladder_buys": {},
-        "wheel": {}
+        "wheel": {},
+        "mean_reversion": {},
+        "profit_take": {
+          "fired_thresholds": [],
+          "baseline_qty": null,
+          "last_baseline_at": null
+        }
       },
       "total_profit_usd": 0,
       "total_invested_usd": 500
@@ -219,7 +261,13 @@
       "strategy_config": {
         "trailing_stop": {},
         "ladder_buys": {},
-        "wheel": {}
+        "wheel": {},
+        "mean_reversion": {},
+        "profit_take": {
+          "fired_thresholds": [],
+          "baseline_qty": null,
+          "last_baseline_at": null
+        }
       },
       "total_profit_usd": 0,
       "total_invested_usd": 500
@@ -247,7 +295,13 @@
       "strategy_config": {
         "trailing_stop": {},
         "ladder_buys": {},
-        "wheel": {}
+        "wheel": {},
+        "mean_reversion": {},
+        "profit_take": {
+          "fired_thresholds": [],
+          "baseline_qty": null,
+          "last_baseline_at": null
+        }
       },
       "total_profit_usd": 0,
       "total_invested_usd": 500
@@ -275,7 +329,13 @@
       "strategy_config": {
         "trailing_stop": {},
         "ladder_buys": {},
-        "wheel": {}
+        "wheel": {},
+        "mean_reversion": {},
+        "profit_take": {
+          "fired_thresholds": [],
+          "baseline_qty": null,
+          "last_baseline_at": null
+        }
       },
       "total_profit_usd": 0,
       "total_invested_usd": 500
@@ -303,7 +363,13 @@
       "strategy_config": {
         "trailing_stop": {},
         "ladder_buys": {},
-        "wheel": {}
+        "wheel": {},
+        "mean_reversion": {},
+        "profit_take": {
+          "fired_thresholds": [],
+          "baseline_qty": null,
+          "last_baseline_at": null
+        }
       },
       "total_profit_usd": 0,
       "total_invested_usd": 500
@@ -331,7 +397,13 @@
       "strategy_config": {
         "trailing_stop": {},
         "ladder_buys": {},
-        "wheel": {}
+        "wheel": {},
+        "mean_reversion": {},
+        "profit_take": {
+          "fired_thresholds": [],
+          "baseline_qty": null,
+          "last_baseline_at": null
+        }
       },
       "total_profit_usd": 0,
       "total_invested_usd": 500
@@ -359,7 +431,13 @@
       "strategy_config": {
         "trailing_stop": {},
         "ladder_buys": {},
-        "wheel": {}
+        "wheel": {},
+        "mean_reversion": {},
+        "profit_take": {
+          "fired_thresholds": [],
+          "baseline_qty": null,
+          "last_baseline_at": null
+        }
       },
       "total_profit_usd": 0,
       "total_invested_usd": 500
@@ -387,7 +465,13 @@
       "strategy_config": {
         "trailing_stop": {},
         "ladder_buys": {},
-        "wheel": {}
+        "wheel": {},
+        "mean_reversion": {},
+        "profit_take": {
+          "fired_thresholds": [],
+          "baseline_qty": null,
+          "last_baseline_at": null
+        }
       },
       "total_profit_usd": 0,
       "total_invested_usd": 500
@@ -415,7 +499,13 @@
       "strategy_config": {
         "trailing_stop": {},
         "ladder_buys": {},
-        "wheel": {}
+        "wheel": {},
+        "mean_reversion": {},
+        "profit_take": {
+          "fired_thresholds": [],
+          "baseline_qty": null,
+          "last_baseline_at": null
+        }
       },
       "total_profit_usd": 0,
       "total_invested_usd": 500
@@ -443,7 +533,13 @@
       "strategy_config": {
         "trailing_stop": {},
         "ladder_buys": {},
-        "wheel": {}
+        "wheel": {},
+        "mean_reversion": {},
+        "profit_take": {
+          "fired_thresholds": [],
+          "baseline_qty": null,
+          "last_baseline_at": null
+        }
       },
       "total_profit_usd": 0,
       "total_invested_usd": 500
@@ -471,7 +567,13 @@
       "strategy_config": {
         "trailing_stop": {},
         "ladder_buys": {},
-        "wheel": {}
+        "wheel": {},
+        "mean_reversion": {},
+        "profit_take": {
+          "fired_thresholds": [],
+          "baseline_qty": null,
+          "last_baseline_at": null
+        }
       },
       "total_profit_usd": 0,
       "total_invested_usd": 500
@@ -499,7 +601,13 @@
       "strategy_config": {
         "trailing_stop": {},
         "ladder_buys": {},
-        "wheel": {}
+        "wheel": {},
+        "mean_reversion": {},
+        "profit_take": {
+          "fired_thresholds": [],
+          "baseline_qty": null,
+          "last_baseline_at": null
+        }
       },
       "total_profit_usd": 0,
       "total_invested_usd": 500
@@ -527,7 +635,13 @@
       "strategy_config": {
         "trailing_stop": {},
         "ladder_buys": {},
-        "wheel": {}
+        "wheel": {},
+        "mean_reversion": {},
+        "profit_take": {
+          "fired_thresholds": [],
+          "baseline_qty": null,
+          "last_baseline_at": null
+        }
       },
       "total_profit_usd": 0,
       "total_invested_usd": 500

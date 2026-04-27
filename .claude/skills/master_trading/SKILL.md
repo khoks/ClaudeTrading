@@ -32,13 +32,27 @@ source "$REPO_ROOT/lib/pool.sh"
    ```
    Capture this as `$SETS`.
 
-3. **Strategy fan-out.** Read `persistence/config/strategy_defaults.json`. For each key whose `.enabled == true`, invoke the matching skill:
-   - `trailing_stop` → skill `strategy_trailing_stop`
-   - `ladder_buys`   → skill `strategy_ladder_buys`
-   - `wheel`         → skill `strategy_wheel`
-   - any user-added strategy → skill `strategy_<name>`
+3. **Strategy fan-out — two phases.** Read enabled strategies from `persistence/config/strategy_defaults.json`. Run them in the order below. Cross-strategy guards are enforced by master_trading at the set-membership level — strategies do not need to know about each other.
 
-   Each strategy receives a JSON envelope on stdin:
+   **Phase A — sells (operate on `sets.sellable`):**
+   1. `profit_take`  → skill `strategy_profit_take` (eager partial; absolute-gain rungs)
+   2. `trailing_stop` → skill `strategy_trailing_stop` (full retracement exit)
+
+   After Phase A, build `sold_this_tick = { symbol of every order placed in Phase A }`.
+
+   **Phase B — buys (operate on a filtered subset of `sets.buyable`):**
+   1. `mean_reversion` → skill `strategy_mean_reversion` (selective: ≤ `bottom_k` laggards per tick)
+   2. `ladder_buys`   → skill `strategy_ladder_buys` (broad: any stock that broke its drop threshold)
+
+   Before each Phase-B strategy, filter the buyable set:
+   - Drop any symbol in `sold_this_tick` (sell-then-buy in the same tick is wash churn).
+   - Drop any symbol already bought earlier in Phase B (no double-buy across strategies — first writer wins).
+
+   Strategies receive their filtered buyable in the envelope's `buyable` field; they don't compute the filter themselves.
+
+   `wheel` (and any user-added strategy) runs after these as appropriate. Wheel is currently disabled.
+
+   **Envelope shape (same for every strategy):**
    ```json
    {
      "sellable": [...],
@@ -47,7 +61,11 @@ source "$REPO_ROOT/lib/pool.sh"
      "now":      "<ISO-8601>"
    }
    ```
-   And emits to stdout a JSON array of `{ symbol, side, qty|notional, type, alpaca_order_id, status }` records describing each placed order. Aggregate across strategies into `$ACTIONS`.
+   Each strategy emits to stdout a JSON array of `{ strategy, symbol, side, qty|notional, type, alpaca_order_id, status, reason }` records. Aggregate across strategies into `$ACTIONS` preserving phase order.
+
+   **Why sells before buys:** sells free cash. If both phases ran in parallel or buys-first, a strategic exit on AAPL might be preempted by a ladder buy on MSFT that drained the cash needed to actually market-sell AAPL.
+
+   **Why selective-before-broad inside each phase:** the more selective strategy expresses higher per-stock conviction. Letting it run first ensures its picks aren't pre-empted by a broader strategy claiming the same cash or symbol.
 
 4. **State persistence.** Invoke skill `state_persistence` with envelope:
    ```json

@@ -75,6 +75,11 @@ for sym in $(jq -r '.[]' <<<"$buyable"); do
   qty=$(jq -nc --argjson n "$notional" --argjson p "$price" '$n / $p')
   pool_set_last_buy "$sym" "$now" "$price" "$qty" "$notional"
 
+  # Decrement running cash so subsequent loop iterations see the reduced
+  # balance. Without this, N candidates each compute notional against the
+  # original cash → over-commitment on a low-cash account.
+  cash=$(jq -nc --argjson c "$cash" --argjson n "$notional" '$c - $n')
+
   orders=$(jq -nc --argjson a "$orders" \
     --arg s "$sym" --argjson q "$qty" --argjson n "$notional" --argjson p "$price" \
     --arg id "$order_id" --arg st "$status" --arg r "$reason" '

@@ -1,8 +1,22 @@
 {
+  "profit_take": {
+    "enabled": true,
+    "profit_thresholds_percent": [10, 20, 35, 50],
+    "sell_fraction_per_rung": 0.25
+  },
   "trailing_stop": {
     "enabled": true,
     "drop_percent": 7,
     "raise_percent": 10
+  },
+  "mean_reversion": {
+    "enabled": true,
+    "lookback_days": 5,
+    "bottom_k": 1,
+    "min_underperformance_percent": 5,
+    "buy_amount_usd": 100,
+    "ma_filter_days": 50,
+    "min_hours_between_buys": 2
   },
   "ladder_buys": {
     "enabled": true,
