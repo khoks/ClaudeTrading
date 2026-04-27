@@ -20,6 +20,15 @@ A separate schedule fires `/reporting` daily at 7am PT, producing an HTML diagno
 
 ## Setup
 
+### Prerequisites
+
+- `bash` (Git Bash on Windows is fine)
+- `curl` (any recent version)
+- `jq` ≥ 1.6 — install via `winget install jqlang.jq` / `brew install jq` / `apt install jq`
+- `gh` (GitHub CLI) authenticated with the repo's owner account
+
+### Steps
+
 ```bash
 # 1. Clone
 gh repo clone khoks/ClaudeTrading
