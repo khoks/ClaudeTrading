@@ -21,6 +21,7 @@
       "Bash(source:*)",
       "Bash(test:*)",
       "Bash([:*)",
+      "Bash",
       "Read",
       "Write",
       "Edit",
