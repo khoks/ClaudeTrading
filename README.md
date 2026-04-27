@@ -51,17 +51,38 @@ A separate schedule fires `/reporting` daily at 7 AM PT, producing an HTML diagn
 git clone https://github.com/khoks/ClaudeTrading.git
 cd ClaudeTrading
 
-# 2. Drop creds in .env (never committed)
+# 2. Get your Alpaca paper API credentials (see "Generating Alpaca paper credentials" below)
+#    Drop them in .env (which is gitignored)
 cp .env.example .env
 $EDITOR .env   # paste ALPACA_KEY and ALPACA_SECRET
 
-# 3. Smoke-test
+# 3. Smoke-test the credentials
 source lib/env.sh && source lib/alpaca.sh && alpaca_account | jq .status   # → "ACTIVE"
 
 # 4. From inside Claude Code, configure & activate
 claude
 > /master_configurator
 ```
+
+### Generating Alpaca paper credentials
+
+If you don't already have an Alpaca paper account, you'll need one before step 2. Paper trading is free — there's no funding requirement, no SSN, no credit check. The starting balance is virtual ($100k by default).
+
+1. **Sign up** at [alpaca.markets/signup](https://alpaca.markets/signup). Verify the email; that's it for the basic signup.
+2. **Go to the Paper Trading dashboard** at [app.alpaca.markets/paper/dashboard/overview](https://app.alpaca.markets/paper/dashboard/overview).
+3. **Find the "API Keys" panel** (right side of the dashboard, below the Buy/Sell widget). It shows:
+   - **Endpoint:** `https://paper-api.alpaca.markets/v2` *(matches `ALPACA_BASE` in `.env.example` — no change needed)*
+   - **Key:** a 20-character public identifier starting with `PK…`
+   - **Regenerate** button
+4. **Click "Regenerate"** to create a new Key + Secret pair. **The secret is displayed only once — copy it immediately into your `.env`.** If you lose it, just regenerate again (it invalidates any prior secret, so update `.env` if you regenerate after the system is running).
+5. Paste both into `.env`:
+   ```
+   ALPACA_KEY=PK…              # the public key
+   ALPACA_SECRET=…              # the secret shown once
+   ```
+   `ALPACA_BASE` and `ALPACA_DATA_BASE` already have correct paper-only defaults — leave them alone.
+
+> If your dashboard shows a "Live Account" section instead of paper, you're on the wrong tab — switch to **Paper Trading** in the top-left account switcher (the dashboard URL should contain `/paper/`).
 
 `/master_configurator` is the **mandatory first run** before any tick or report fires. It:
 
