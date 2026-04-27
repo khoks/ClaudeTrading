@@ -164,4 +164,21 @@ cat <<EOF
 EOF
 } > "$out"
 
+# Stage + commit + push the report. Mirrors state_persistence's commit pattern
+# but scoped to just this file so concurrent state_persistence runs don't
+# get pulled into the report commit. Non-fatal: if git fails (offline,
+# non-fast-forward, etc.), the HTML is already on disk and the path is still
+# returned to the caller.
+(
+  cd "$REPO_ROOT"
+  git add "persistence/reports/${today}.html"
+  if git diff --cached --quiet -- "persistence/reports/${today}.html"; then
+    : # report unchanged from last commit (e.g., re-run within same minute)
+  else
+    git -c user.email=trading@claude.local -c user.name="ClaudeTrading bot" \
+        commit -m "report: ${today}"
+    git push
+  fi
+) || echo "warn: git commit/push for report failed (HTML still saved at $out)" >&2
+
 echo "$out"
