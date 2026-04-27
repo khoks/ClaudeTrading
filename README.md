@@ -93,6 +93,18 @@ If you don't already have an Alpaca paper account, you'll need one before step 2
 
 `master_trading` and `reporting` both check `activation.json.configured == true` at the top of every run and exit with a clear error if you skipped the configurator.
 
+### Viewing your portfolio: the dashboard
+
+For a snapshot of everything — account, positions, recent activity, strategy state, configuration, pool, schedule — run:
+
+```
+> /dashboard
+```
+
+This generates a self-contained HTML file at `persistence/dashboard.html`. Open it by **double-clicking from your file manager** (works on macOS, Linux, and Windows) — it renders offline with no external dependencies. All data is baked in at generation time; re-run `/dashboard` to refresh.
+
+The dashboard is **gitignored per-operator** — your portfolio and trading data stay on your machine.
+
 ## Contributing
 
 Changes to the repo's design, strategy skills, library code, or docs land via pull request — never directly on `main`. The `/change_management` skill (auto-nudged by a `PostToolUse` hook on tracked-file edits) creates a `change/*` branch, opens a PR, and routes the change for owner review. To check if your PR was approved, ask Claude `"is my PR approved?"` and the same skill in sync mode will fetch state and merge the branch back to `main` if the owner has merged it on GitHub.
