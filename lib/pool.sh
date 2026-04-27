@@ -35,7 +35,14 @@ fi
 
 POOL_FILE="$REPO_ROOT/persistence/pool.json"
 
+# pool_read — print pool.json. Auto-creates an empty pool on first call so
+# fresh clones (where pool.json is gitignored) work without manual setup.
+# The first writer / pool_add_stock call will populate it.
 pool_read() {
+  if [ ! -f "$POOL_FILE" ]; then
+    mkdir -p "$(dirname "$POOL_FILE")"
+    echo '{"stocks": [], "last_updated": null}' > "$POOL_FILE"
+  fi
   cat "$POOL_FILE"
 }
 

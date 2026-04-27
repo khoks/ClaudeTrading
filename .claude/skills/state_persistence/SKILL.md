@@ -1,12 +1,12 @@
 ---
 name: state_persistence
-description: This skill should be used when invoked by master_trading at the end of every tick, or when the user asks to "snapshot trading state", "save trading data", "commit trading state". Writes a per-tick snapshot of the Alpaca account and pool, and on the last tick of the trading day/week also writes daily and weekly rollups. Prunes stale per-tick snapshots, then commits and pushes everything to GitHub so the next remote-agent run sees fresh state.
-version: 0.1.0
+description: This skill should be used when invoked by master_trading at the end of every tick, or when the user asks to "snapshot trading state", "save trading data". Writes a per-tick snapshot of the Alpaca account and pool. On the last tick of the trading day/week, also writes daily and weekly rollups. Prunes stale per-tick snapshots. All writes are local-only — snapshots and pool state are gitignored per-operator.
+version: 0.2.0
 ---
 
 # state_persistence
 
-The disk + git layer of ClaudeTrading. Every other skill mutates pool.json in place; this skill is where the snapshots, rollups, pruning, and git push happen.
+The disk layer of ClaudeTrading. Every other skill mutates `pool.json` in place; this skill is where the snapshots, rollups, and pruning happen.
 
 ## Invocation contract
 
@@ -19,58 +19,40 @@ The disk + git layer of ClaudeTrading. Every other skill mutates pool.json in pl
 }
 ```
 
-**STDOUT** — single line confirming what was written:
+**STDOUT** — single line summarising what was written:
 ```json
-{ "snapshots": ["tick", "daily"], "committed": true, "commit_sha": "abc123" }
+{ "tick": "<path>", "daily": "<path>|null", "weekly": "<path>|null", "pruned": <int> }
 ```
 
 ## Workflow
 
+The whole flow is a single script invocation — `persist.sh` is the orchestrator that mechanically applies the conditional daily/weekly logic so it never gets cut by an interpreting Claude session.
+
 ```bash
-source "$REPO_ROOT/lib/env.sh"
-source "$REPO_ROOT/lib/alpaca.sh"
-source "$REPO_ROOT/lib/calendar.sh"
-source "$REPO_ROOT/lib/pool.sh"
+echo "$envelope" | bash "$REPO_ROOT/.claude/skills/state_persistence/scripts/persist.sh"
 ```
 
-1. **Always: write tick snapshot.**
-   `bash scripts/snapshot_tick.sh "<envelope>"` → writes `persistence/snapshots/tick/<YYYY-MM-DDTHH-mm>.json` with:
-   - `tick_at`
-   - `account` (cash, equity, buying_power, last_equity)
-   - `positions` (full Alpaca positions response)
-   - `actions` from envelope
-   - `sets` from envelope
-   - `equity_delta_vs_prev_tick` — equity now minus equity from the previous tick snapshot (cadence-agnostic)
+What `persist.sh` does, in order:
 
-2. **Update pool.** The strategy scripts already mutated `last_buy`/`last_sell`/watermark/`stop_loss` in pool.json. Ensure `last_updated` is bumped (`pool_write` does this automatically).
+1. **Always: tick snapshot.** Calls `snapshot_tick.sh` with the envelope on stdin. Writes `persistence/snapshots/tick/<YYYY-MM-DDTHH-mm>.json` containing `tick_at`, full Alpaca account + positions response, the envelope's `actions` and `sets`, and `equity_delta_vs_prev_tick`.
+2. **Conditional: daily rollup.** If `is_last_tick_of_trading_day` (from `lib/calendar.sh`, reads `tick_cadence_minutes` from `activation.json`), calls `snapshot_daily.sh`. Aggregates today's tick snapshots into `persistence/snapshots/daily/<YYYY-MM-DD>.json` (opening/closing equity, day P/L, all actions, final positions, tick_count).
+3. **Conditional: weekly rollup.** If a daily snapshot was just written AND `is_last_trading_day_of_week`, calls `snapshot_weekly.sh`. Aggregates this week's daily snapshots into `persistence/snapshots/weekly/<YYYY-Www>.json`.
+4. **Always: prune.** `prune_tick.sh` removes any `persistence/snapshots/tick/*.json` older than 7 days (configurable via `PRUNE_DAYS` env var). Daily and weekly snapshots are retained indefinitely.
 
-3. **If `is_last_tick_of_trading_day`:** `bash scripts/snapshot_daily.sh` → writes `persistence/snapshots/daily/<YYYY-MM-DD>.json` consolidating the day's actions, opening/closing equity, per-stock day P/L.
+`pool.json` mutations were already done by the strategies during the tick — `pool_write` bumps `last_updated` automatically, so nothing extra is needed here.
 
-4. **If also `is_last_trading_day_of_week`:** `bash scripts/snapshot_weekly.sh` → writes `persistence/snapshots/weekly/<YYYY-Www>.json` with week-over-week equity, top winners/losers.
+## No git commits — by design
 
-5. **Prune.** `bash scripts/prune_tick.sh` removes any `persistence/snapshots/tick/*.json` older than 7 days. Daily/weekly are retained indefinitely.
+Snapshots, reports, and `pool.json` are **gitignored per-operator** so trading history stays local. State_persistence does not commit or push. If you want cross-machine portability, set up your own backup mechanism (rsync, private mirror, etc.).
 
-6. **Git commit and push.**
-   ```bash
-   cd "$REPO_ROOT"
-   git add persistence/
-   if git diff --cached --quiet; then
-     echo "no state changes"; exit 0
-   fi
-   git -c user.email=trading@claude.local -c user.name="ClaudeTrading bot" \
-       commit -m "state: $(date -u +%FT%TZ)"
-   git push
-   ```
-
-## Why the bot commits as a synthetic identity
-
-Identifies bot commits in history at a glance. Replace with the user's preferred email if they want commits attributed to themselves.
+The repo is shareable publicly — anyone who clones it gets the code, the strategies, and the shipped baseline `strategy_defaults.json`, but not anyone else's trading data.
 
 ## Race conditions
 
-`master_trading` fires on the configured tick cadence (see `persistence/config/activation.json`.tick_cadence_minutes), so two simultaneous runs are very unlikely, but still possible (manual trigger during a scheduled fire). The git push will fail safely on a second concurrent run; the second run should `git pull --rebase` and retry once. If retry fails, log and exit non-zero — better to skip a commit than to corrupt state.
+Two simultaneous `master_trading` runs are unlikely but possible (manual trigger during a scheduled fire). The tick snapshot writes are atomic (temp + mv) but reads inside a tick are not transactional, so back-to-back ticks can interleave with surprising results. Avoid running `claude -p '/master_trading'` while a scheduled tick is active.
 
 ## Reuse
 
-- All four `lib/*.sh`.
-- `scripts/snapshot_tick.sh`, `scripts/snapshot_daily.sh`, `scripts/snapshot_weekly.sh`, `scripts/prune_tick.sh`.
+- `lib/env.sh`, `lib/alpaca.sh`, `lib/calendar.sh`, `lib/pool.sh`
+- `scripts/persist.sh` (orchestrator)
+- `scripts/snapshot_tick.sh`, `scripts/snapshot_daily.sh`, `scripts/snapshot_weekly.sh`, `scripts/prune_tick.sh`

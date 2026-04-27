@@ -8,6 +8,16 @@ version: 0.1.0
 
 Daily diagnostic for the user. Runs at 7am PT before market open, summarising the prior trading day plus week-to-date.
 
+## Preconditions (check first, fail fast)
+
+```bash
+ACT="$REPO_ROOT/persistence/config/activation.json"
+if [ ! -f "$ACT" ] || ! jq -e '.configured == true' "$ACT" >/dev/null 2>&1; then
+  echo "ERROR: This clone has not been initialized. Run /master_configurator first." >&2
+  exit 1
+fi
+```
+
 ## Invocation
 
 Schedule: cron `0 7 * * 1-5` America/Los_Angeles → runs `/reporting`.

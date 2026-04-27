@@ -8,11 +8,20 @@ version: 0.1.0
 
 The heartbeat of ClaudeTrading. One invocation = one trading tick. Cadence is set by the cron expression on the `claudetrading-master-tick` scheduled task and mirrored in `persistence/config/activation.json` as `tick_cadence_minutes` (so libraries that need it — e.g. `is_last_tick_of_trading_day` — can stay correct when the schedule changes).
 
-## Preconditions
+## Preconditions (check first, fail fast)
 
-- `master_configurator` has been run (`persistence/config/activation.json`.configured == true).
+```bash
+ACT="$REPO_ROOT/persistence/config/activation.json"
+if [ ! -f "$ACT" ] || ! jq -e '.configured == true' "$ACT" >/dev/null 2>&1; then
+  echo "ERROR: This clone has not been initialized." >&2
+  echo "Run /master_configurator first to set up your pool, preferences, and schedules." >&2
+  exit 1
+fi
+```
+
+Other expectations:
 - `.env` or runner-injected env vars expose Alpaca creds.
-- `persistence/pool.json` has at least one stock.
+- `persistence/pool.json` has at least one stock (master_configurator + user_preferences_intake guarantee this).
 
 ## Tick workflow (run in order, fail fast on errors)
 
@@ -67,7 +76,11 @@ source "$REPO_ROOT/lib/pool.sh"
 
    **Why selective-before-broad inside each phase:** the more selective strategy expresses higher per-stock conviction. Letting it run first ensures its picks aren't pre-empted by a broader strategy claiming the same cash or symbol.
 
-4. **State persistence.** Invoke skill `state_persistence` with envelope:
+4. **State persistence.** Pipe the envelope to `persist.sh`:
+   ```bash
+   echo "$ENVELOPE" | bash "$REPO_ROOT/.claude/skills/state_persistence/scripts/persist.sh"
+   ```
+   where `$ENVELOPE` is:
    ```json
    {
      "tick_at":  "<ISO-8601>",
@@ -75,7 +88,7 @@ source "$REPO_ROOT/lib/pool.sh"
      "sets":     $SETS
    }
    ```
-   It owns the snapshot files, pool updates, daily/weekly rollups, and the git commit/push.
+   `persist.sh` mechanically writes the tick snapshot, conditionally writes daily/weekly rollups (no judgment needed), and prunes old tick snapshots. Snapshots and pool state are gitignored per-operator — there is no auto-commit.
 
 5. **Exit 0.** Print a one-line summary: `tick OK | actions=<N> | sellable=<N> | buyable=<N>`.
 

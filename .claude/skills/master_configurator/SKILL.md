@@ -18,9 +18,22 @@ Activates the ClaudeTrading system from cold. This is the single entry point a u
 
 - `.env` (or runner-injected env vars) contains `ALPACA_KEY`, `ALPACA_SECRET`.
 - `lib/env.sh` is sourceable from `$REPO_ROOT/lib/env.sh`.
-- `gh auth status` succeeds (used by state_persistence to push commits).
 
 ## Workflow
+
+0. **Bootstrap config files from `.example` templates if missing.** On a fresh clone of a public repo, the per-operator config files (and the `.claude/settings.json` allowlist) won't exist yet because they're gitignored. Copy them from the `.example` templates that ship with the repo:
+   ```bash
+   for path in \
+     persistence/pool.json \
+     persistence/config/activation.json \
+     persistence/config/user_preferences.json \
+     .claude/settings.json; do
+     [ -f "$REPO_ROOT/$path" ] && continue
+     [ -f "$REPO_ROOT/$path.example" ] || continue
+     cp "$REPO_ROOT/$path.example" "$REPO_ROOT/$path"
+     echo "bootstrapped $path from $path.example"
+   done
+   ```
 
 1. **Read activation state.** Open `persistence/config/activation.json`.
    - If `.configured == true`, ask the user (AskUserQuestion) whether to RECONFIGURE or CANCEL. On cancel, exit.
@@ -57,13 +70,17 @@ Activates the ClaudeTrading system from cold. This is the single entry point a u
      }
    }
    ```
-7. **Commit + push** the new config files (NOT `.env`):
-   ```bash
-   git add persistence/config/ persistence/pool.json
-   git commit -m "config: master_configurator run on $(date -u +%FT%TZ)"
-   git push
-   ```
-8. **Print a confirmation summary** to the user: number of stocks in pool, enabled strategies, chosen cadence, both schedule IDs, next expected trigger time.
+7. **No commit.** Per-operator config files (`pool.json`, `activation.json`, `user_preferences.json`, `.claude/settings.json`) are gitignored — they stay local. `strategy_defaults.json` is the only config file that's committed; if you changed it during this run (via `prebuilt_strategy_configurator`), commit + push that change manually. The shipped baseline of `strategy_defaults.json` is what new clones inherit.
+
+8. **Print a confirmation summary** to the user. Include:
+   - Number of stocks in pool, enabled strategies, chosen cadence, both schedule IDs, next expected trigger time.
+   - **Disclose the `.claude/settings.json` allowlist** that was bootstrapped (or is currently active) — the user should know what permissions are pre-granted to scheduled-tick sessions:
+     - `Bash` (any command — needed because scheduled sessions run compound `&&` chains the granular allowlist can't pre-match)
+     - `Bash(<cmd>:*)` granular entries documenting intent (curl, jq, git, gh, bash, source, etc.)
+     - `Read`, `Write`, `Edit`, `Glob`, `Grep` — file operations
+     - `mcp__scheduled-tasks__list_scheduled_tasks` — read-only schedule inspection
+   - Plus `ask` rules retained as safety guards: `Bash(gh repo create:*)`, `Bash(gh repo delete:*)`, `mcp__scheduled-tasks__create_scheduled_task`, `mcp__scheduled-tasks__update_scheduled_task`. The user is asked before any of these run, even from scheduled sessions.
+   - Tell the user they can review or tighten this in `.claude/settings.json` (their local copy, not committed).
 
 ## Reconfigure mode
 

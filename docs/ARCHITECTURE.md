@@ -51,7 +51,7 @@ How this system is built. For *what it does* day-to-day, see [FUNCTIONALITY.md](
                 └─────────────────────────────────────────────┘
 ```
 
-The repo is itself the persistence layer's git remote — every tick auto-commits and pushes to `origin/main`.
+Per-operator state (pool, snapshots, reports, activation, the local settings.json allowlist) is **gitignored**. The public repo holds code, strategy defaults, and `.example` templates only — trading data stays on the operator's machine.
 
 ---
 
@@ -63,10 +63,12 @@ The repo is itself the persistence layer's git remote — every tick auto-commit
 | **Skill** | `.claude/skills/<name>/SKILL.md` | Each skill is markdown that Claude reads as a prompt at runtime | Hand-edit; Claude can edit during user sessions |
 | **Script** | `.claude/skills/<name>/scripts/*.sh` | Bash + jq, called from skill bodies | Hand-edit |
 | **Library** | `lib/*.sh` | Shared helpers, sourced by every script | Hand-edit |
-| **Persistence (mutable state)** | `persistence/pool.json` | Strategies during ticks; intakes during configuration | Auto-committed by state_persistence |
-| **Persistence (snapshots)** | `persistence/snapshots/{tick,daily,weekly}/*.json` | state_persistence | Auto-committed; `tick/` pruned at 7 days |
-| **Persistence (config)** | `persistence/config/*.json` | configurator + intake skills | Hand-editable; auto-committed when changed |
-| **Persistence (reports)** | `persistence/reports/*.html` | reporting skill | Auto-committed by generate_report.sh |
+| **Persistence (mutable state)** | `persistence/pool.json` | Strategies during ticks; intakes during configuration | **Gitignored.** Bootstrapped from `pool.json.example` by master_configurator. |
+| **Persistence (snapshots)** | `persistence/snapshots/{tick,daily,weekly}/*.json` | state_persistence | **Gitignored.** `tick/` pruned at 7 days. Directories preserved by `.gitkeep`. |
+| **Persistence (config — operator-specific)** | `persistence/config/{activation,user_preferences}.json` | configurator + intake skills | **Gitignored.** Bootstrapped from `.example` templates by master_configurator. |
+| **Persistence (config — committed baseline)** | `persistence/config/strategy_defaults.json` | prebuilt_strategy_configurator | **Committed.** Shipped with sensible defaults; new clones inherit. |
+| **Persistence (reports)** | `persistence/reports/*.html` | reporting skill | **Gitignored.** Operator's daily diagnostics stay local. |
+| **Claude permissions** | `.claude/settings.json` | master_configurator on first run | **Gitignored.** Bootstrapped from `settings.json.example` (recommended allowlist). |
 | **Source of truth** | Alpaca paper API | n/a | Strategies place orders; positions/cash read fresh each tick |
 
 Two separation principles drive the layout:
@@ -111,16 +113,18 @@ End-to-end for one master_trading invocation:
          - alpaca_last_price, threshold check OR cold-start
          - Place market buy, pool_set_last_buy, decrement running cash
 11. Master_trading aggregates all order arrays into $ACTIONS
-12. master_trading invokes state_persistence with envelope { tick_at, actions, sets }
-13. state_persistence:
+12. master_trading pipes the envelope { tick_at, actions, sets } to
+    state_persistence/scripts/persist.sh
+13. persist.sh runs MECHANICALLY (no Claude judgment in the loop):
       a. snapshot_tick.sh: pull live account/positions, write tick snapshot,
          compute equity_delta_vs_prev_tick
-      b. If is_last_tick_of_trading_day: snapshot_daily.sh aggregates today's
-         tick snapshots into one daily file
-      c. If also is_last_trading_day_of_week: snapshot_weekly.sh aggregates
-         this week's daily snapshots
+      b. If is_last_tick_of_trading_day (reads tick_cadence_minutes from
+         activation.json to size the detection window): snapshot_daily.sh
+         aggregates today's tick snapshots into one daily file
+      c. If a daily was just written AND is_last_trading_day_of_week:
+         snapshot_weekly.sh aggregates this week's daily snapshots
       d. prune_tick.sh removes tick/*.json older than 7 days
-      e. git add persistence/, commit (bot identity), push
+      No git push — all state is gitignored per-operator.
 14. Master_trading prints one-line summary to stdout. Session ends.
 ```
 
@@ -141,8 +145,8 @@ End-to-end for one master_trading invocation:
 | `strategy_mean_reversion` | Tick (buys) | Buy the basket-relative laggard | master_trading Phase B.1 | `alpaca_bars`, `alpaca_place_order`, `pool_set_last_buy` |
 | `strategy_ladder_buys` | Tick (buys) | Buy the per-position dip; cold-start initial rung | master_trading Phase B.2 | `alpaca_last_price`, `alpaca_place_order`, `pool_set_last_buy` |
 | `strategy_wheel` | Tick (disabled) | Cash-secured puts → covered calls (placeholder) | master_trading (skipped while disabled) | n/a |
-| `state_persistence` | Tick | Snapshot + rollup + prune + git push | master_trading (last step) | `snapshot_tick.sh`, `snapshot_daily.sh`, `snapshot_weekly.sh`, `prune_tick.sh`; git |
-| `reporting` | Daily | Generate daily HTML diagnostic | Schedule (`claudetrading-daily-report`) or user (`/reporting`) | `generate_report.sh` (which auto-commits the HTML) |
+| `state_persistence` | Tick | Snapshot + rollup + prune (local only — no git) | master_trading (last step) | `persist.sh` orchestrator → `snapshot_tick.sh`, `snapshot_daily.sh`, `snapshot_weekly.sh`, `prune_tick.sh` |
+| `reporting` | Daily | Generate daily HTML diagnostic (local-only) | Schedule (`claudetrading-daily-report`) or user (`/reporting`) | `generate_report.sh` |
 
 ---
 
@@ -349,9 +353,11 @@ Read/write `persistence/pool.json` via jq. All writes are atomic (write-temp + m
 - **Cron string** — set on the scheduled task (e.g., `*/15 6-12 * * 1-5`). Operator must keep them in sync; `master_configurator` does this on activation/reconfigure.
 - **`is_last_tick_of_trading_day`** — reads cadence from `activation.json` to set the detection window, so daily rollups fire on the correct tick regardless of cadence.
 
-### 7.2 The 2-trading-day H1B floor
+### 7.2 The trading-day cooldown floor
 
-Implemented entirely in `safe_trading.filter_pool.sh` via `trading_days_old_enough <ts> 2`. **Every** strategy operates on `safe_trading`'s output sets — they never read `pool.json` directly to decide eligibility. This is the systemic guardrail; no individual strategy can bypass it.
+Implemented entirely in `safe_trading.filter_pool.sh` via `trading_days_old_enough <ts> $THRESHOLD` where `THRESHOLD` is `${SAFE_TRADING_THRESHOLD:-2}`. **Every** strategy operates on `safe_trading`'s output sets — they never read `pool.json` directly to decide eligibility. This is the systemic guardrail; no individual strategy can bypass it.
+
+Default threshold is 2 trading days — calibrated for operators avoiding pattern-day-trader and second-income heuristics. Override via env var if a different policy fits.
 
 Trading-days math uses Alpaca `/v2/calendar` (weekends + holidays automatically excluded).
 
@@ -363,7 +369,9 @@ This is implemented in master_trading's SKILL.md prose (since master_trading is 
 
 ### 7.4 Permissions
 
-Project-level `.claude/settings.json` carries an allowlist for the bash commands the scheduled session will run. Currently includes a plain `Bash` allow rule (chosen by operator preference for "loose / broad command families"), with `ask` rules retained for genuinely sensitive ops (`gh repo create/delete`, `mcp__scheduled-tasks__create/update`).
+`.claude/settings.json` carries an allowlist for the bash commands scheduled sessions will run. The file is **gitignored** — `.claude/settings.json.example` ships with the repo as the recommended baseline, and `master_configurator` copies it to the real path on first run.
+
+The recommended baseline includes a plain `Bash` allow rule (necessary because scheduled sessions construct compound `&&` chains the granular allowlist can't match), plus granular `Bash(<cmd>:*)` entries for documentation. Retained `ask` rules: `Bash(gh repo create:*)`, `Bash(gh repo delete:*)`, `mcp__scheduled-tasks__create_scheduled_task`, `mcp__scheduled-tasks__update_scheduled_task`.
 
 The scheduled session reads project settings after `cd $REPO_ROOT`, which is why the prompt explicitly cd's first.
 
@@ -376,9 +384,9 @@ The repo runs unchanged on Linux, macOS (with or without gdate), and Windows Git
 
 ### 7.6 Idempotency and retry
 
-- **Order placement**: not idempotent. If `state_persistence` fails after orders have been placed, master_trading does NOT retry orders to avoid double-placement; it logs and exits non-zero.
+- **Order placement**: not idempotent. If `persist.sh` fails after orders have been placed, master_trading does NOT retry orders to avoid double-placement; it logs and exits non-zero.
 - **Snapshot writes**: write-temp + mv = atomic on POSIX. Re-running the same tick (same minute) overwrites the snapshot, which is fine — Alpaca state is the same so the snapshot content is the same.
-- **Git push**: can fail under concurrent runs. State_persistence's documented behavior is "log non-zero exit", on the principle that skipping a commit is safer than corrupting state. Manual `git pull --rebase` may be needed if you trigger a manual tick during a scheduled fire.
+- **No git push to worry about**: state is local-only, so concurrent ticks don't cause non-fast-forward push failures. They can still race on `pool.json` if you trigger a manual tick during a scheduled fire — avoid this.
 
 ### 7.7 Cache freshness
 
@@ -432,8 +440,8 @@ Add to the appropriate `lib/*.sh`. Two conventions:
 
 `master_trading` only fires every N min, so two simultaneous runs are rare but possible (manual trigger during a scheduled fire). Mitigations:
 
-- `git push` fails safely on a non-fast-forward — second run gets an error, exits non-zero, no state corruption.
 - Alpaca order placement is **not** idempotent; double-firing master_trading would double-place orders. Avoid manual triggers during the cadence window.
+- `pool.json` writes are atomic (temp + mv), so a concurrent reader sees consistent state — but the `read → modify → write` sequence inside a strategy is not transactional, so a concurrent write between two strategies' invocations could clobber updates. Same advice: don't manually fire during scheduled ticks.
 
 ### 9.2 Permission prompts in scheduled sessions
 
@@ -451,12 +459,12 @@ Scheduled-task Claude sessions cannot answer prompts (nobody's at the keyboard).
 ### 9.4 Observability
 
 For debugging:
-- `persistence/snapshots/tick/<latest>.json` — live state at the last tick (account, positions, actions, sets).
+- `persistence/snapshots/tick/<latest>.json` — live state at the last tick (account, positions, actions, sets). Gitignored — viewable locally only.
+- `persistence/snapshots/daily/<date>.json` — end-of-day rollup once `is_last_tick_of_trading_day` fires.
 - `persistence/reports/<today>.html` — human-readable view if the daily report has fired.
-- `git log -- persistence/` — every state change is a commit.
 - `mcp__scheduled-tasks__list_scheduled_tasks` — schedule status, next/last run.
 
-For deep debugging, `claude -p '/master_trading'` runs an ad-hoc tick from the user's interactive session (still gated by `is_market_open`, so closed-market debugging requires inspecting snapshots).
+State is no longer in `git log` — set up your own backup mechanism if you want a history. For deep debugging, `claude -p '/master_trading'` runs an ad-hoc tick from the operator's interactive session (still gated by `is_market_open`, so closed-market debugging requires inspecting existing snapshots).
 
 ---
 
@@ -467,15 +475,15 @@ For deep debugging, `claude -p '/master_trading'` runs an ad-hoc tick from the u
 | **Skill markdown over rigid scripts for orchestration** | Each tick re-reads SKILL.md; behavior changes take effect via commits, no compilation. Claude can also reason about edge cases (e.g., partial Alpaca outages) per tick rather than baking every branch into bash. |
 | **Bash + jq over Python** | Zero external runtime; works identically on Linux / macOS / Git Bash; jq's pipeline is a clean fit for shell-out from a markdown-driven harness. |
 | **JSON on disk over a database** | Human-readable, jq-manipulable, git-trackable. Diffs in PRs are reviewable. No server to run. |
-| **2-trading-day floor enforced systemically by safe_trading** | Centralizes the H1B compliance heuristic. No individual strategy can bypass it; even a user-added strategy inherits the guardrail by virtue of operating on safe_trading's output. |
+| **Trading-day cooldown floor enforced systemically by safe_trading** | Centralizes the cooldown heuristic. No individual strategy can bypass it; even a user-added strategy inherits the guardrail by virtue of operating on safe_trading's output. Threshold defaults to 2 trading days but is overridable via `SAFE_TRADING_THRESHOLD`. |
 | **Two-phase orchestration (sells before buys)** | Sells free cash. Selective-before-broad ordering inside each phase routes high-conviction picks ahead of broad strategies competing for the same cash. |
 | **First-writer-wins for cross-strategy buy conflicts** | Simpler than priority/scoring for v1. Determinism > optimality at this stage; if two strategies want the same stock the same tick, the more-selective one (mean_reversion at $100) wins over the broader one ($500 ladder add). |
 | **profit_take resets `fired_thresholds` on fresh buy** | A new buy at a different price changes the cost basis. Without reset, the +10% threshold from the original basis would be a different price than +10% from the new basis. Reset ensures the rung ladder always references the current cost basis. |
 | **`tick` naming (cadence-agnostic)** | The 5-min name was hardcoded across the codebase originally, broke when cadence moved to 15 min, and would keep drifting any time the schedule changes. "tick" decouples the data unit from any specific cadence. |
 | **`tick_cadence_minutes` in activation.json (not derived from cron)** | The cron string lives in the scheduled-tasks MCP store (out-of-repo). Storing cadence in activation.json keeps it in-repo and queryable by libs that need it. The two are kept in sync by master_configurator on activation/reconfigure. |
-| **Per-tick git commit** | Operationally enables: (a) git history as audit log, (b) recovery from machine loss via clone, (c) cross-machine portability if the operator switches hosts. State_persistence runs at the end of each tick; commits are tagged `state: <iso>`. |
-| **Reports auto-commit themselves (separate from state_persistence)** | The 7am reporting schedule runs in a different session than the trading ticks; bundling its commit into state_persistence would require coordination. Instead `generate_report.sh` self-commits, scoped to just the report file to avoid colliding with concurrent state_persistence runs. |
-| **Bot-identity commits (`trading@claude.local`)** | Visually distinct from operator commits in `git log`. Helps reviewers spot machine-driven state changes vs intentional code edits. |
+| **Per-operator state is local-only (gitignored)** | Earlier design auto-committed every tick. Reversed once the repo became publicly shareable: trading history is private to the operator, and a public repo with strangers' trade timelines committed to `main` is the wrong default. Operators wanting cross-machine portability or an audit log set up their own backup (private mirror, encrypted bucket, etc.). |
+| **Mechanical persist.sh orchestrator (vs markdown-driven state_persistence)** | The earlier design had state_persistence's daily-rollup conditional in SKILL.md prose, which Claude in scheduled sessions sometimes silently skipped. Moving the conditional into a shell script (`persist.sh`) makes daily/weekly rollups happen reliably whenever `is_last_tick_of_trading_day` returns true. |
+| **First-run gate (configurator must run before tick / report)** | Both master_trading and reporting check `activation.json.configured == true` and fail fast otherwise. Combined with the gitignore, a fresh clone has no `activation.json` and the gate forces operators through the configurator (which bootstraps the gitignored config files from `.example` templates). |
 | **Cold-start initial rung in `ladder_buys`** | Without it, a freshly added pool stock with no `last_buy.price` would never have its first position opened. The cold-start branch (line 41-45 of apply.sh) places one initial rung at current market price the first time the stock enters `buyable`. This is what placed the operator's 19 starting positions. |
 | **Wheel scaffolded but disabled** | Options trading on Alpaca requires explicit account approval. Hard-coded `enabled: false` until the operator confirms approval. The skill exists as a no-op placeholder so master_trading doesn't error on a missing strategy reference. |
 
@@ -487,10 +495,11 @@ These are repo-wide invariants enforced by convention; they should be respected 
 
 1. **Paper API only.** Never call `https://api.alpaca.markets`. Base URL is `https://paper-api.alpaca.markets/v2`.
 2. **Never commit `.env`.** Gitignored; verify with `git status` before every commit.
-3. **Snapshots ARE committed.** `persistence/{snapshots,pool.json,config,reports}` all live in the repo because the original design assumed remote ephemeral execution.
-4. **Always go through safe_trading.** Every order originates from a stock returned by the safe_trading filter.
-5. **No legal or tax advice.** The cooldown is a heuristic, not guarantees of compliance.
-6. **`master_configurator` is the only place that activates schedules.** Ad-hoc skills must not call `mcp__scheduled-tasks__create_scheduled_task` directly.
-7. **`wheel` is disabled by default.** Enabling requires confirmed Alpaca options approval.
+3. **Per-operator state is local-only.** `persistence/{pool.json, config/{activation,user_preferences}.json, snapshots/**, reports/**}` and `.claude/settings.json` are gitignored. `.example` templates ship with the repo; `master_configurator` materialises the real files on first run.
+4. **`master_configurator` must be run before `master_trading` or `reporting`.** Both check `activation.json.configured == true` at startup and exit on failure.
+5. **Always go through safe_trading.** Every order originates from a stock returned by the safe_trading filter.
+6. **No legal or tax advice.** The cooldown is a heuristic, not a guarantee of compliance with FINRA / IRS / visa rules.
+7. **`master_configurator` is the only place that activates schedules.** Ad-hoc skills must not call `mcp__scheduled-tasks__create_scheduled_task` directly.
+8. **`wheel` is disabled by default.** Enabling requires confirmed Alpaca options approval.
 
 See [`CLAUDE.md`](../CLAUDE.md) for the canonical list.

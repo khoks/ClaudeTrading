@@ -1,0 +1,9 @@
+{
+  "configured": false,
+  "activated_at": null,
+  "tick_cadence_minutes": null,
+  "schedule_ids": {
+    "master_trading": null,
+    "reporting": null
+  }
+}

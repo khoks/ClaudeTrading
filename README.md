@@ -1,22 +1,24 @@
 # ClaudeTrading
 
-Autonomous Alpaca paper-trading system driven by Claude Code skills + Anthropic scheduled tasks.
+Autonomous Alpaca paper-trading system driven by Claude Code skills + Anthropic scheduled tasks. Clone it, point it at your own paper account, and it runs entirely on your machine.
 
-> **Paper trading only.** Hardcoded to `https://paper-api.alpaca.markets/v2`. No live-money path exists in this repo.
+> **Paper trading only.** Hard-coded to `https://paper-api.alpaca.markets/v2`. No live-money path exists in this repo. The shipped strategies are calibrated for an aggressive paper-trading profile and are intended as a starting point — retune via `/master_configurator` before relying on them.
 
 ## How it works
 
-On the configured tick cadence during US market hours (Mon–Fri 6:30am–1:00pm PT), a scheduled Claude agent fires `/master_trading`. The cadence lives in `persistence/config/activation.json` as `tick_cadence_minutes` and is set by `/master_configurator`. The skill:
+On a configured cadence during US market hours (Mon–Fri 6:30 AM – 1:00 PM PT), a scheduled Claude session fires `/master_trading`. The skill:
 
 1. Checks the market is open via Alpaca's `/v2/clock`.
-2. Runs `safe_trading` to filter the curated pool into a **sellable set** (last buy older than 2 trading days) and a **buyable set** (last sell older than 2 trading days, or never sold). This is the H1B-safety filter — the user must not be classified as a pattern day trader, so positions must rest at least 2 trading days between opposite-direction trades.
-3. Hands those sets to each enabled strategy:
-   - **`trailing_stop`** — floor-only watermark; sells when price drops 5% below the high.
-   - **`ladder_buys`** — buys $1000 notional when price drops 18% below the last buy.
-   - **`wheel`** — disabled until options approval is granted.
-4. Snapshots the result and commits to GitHub so the next agent sees fresh state.
+2. Runs `safe_trading` to filter the curated pool into a **sellable set** (last buy older than 2 trading days) and a **buyable set** (last sell older than 2 trading days, or never sold). This is a configurable cooldown floor designed to keep operators clear of pattern-day-trader and second-income classifications. It is a user-tunable heuristic, **not** legal or tax advice — see disclaimer.
+3. Hands those sets to each enabled strategy. Four are shipped:
+   - **`profit_take`** — eager partial exit on absolute gain (sells 25% at +10/20/35/50%).
+   - **`trailing_stop`** — full exit on retracement from peak.
+   - **`mean_reversion`** — buys the worst basket-relative laggard (with 50-day MA falling-knife guard).
+   - **`ladder_buys`** — adds to a position when it drops past a configured threshold from the last buy.
+   - (`wheel` is scaffolded but disabled until Alpaca options approval.)
+4. Snapshots the result locally. Trading state is **gitignored per-operator** — your pool, snapshots, and reports stay on your machine.
 
-A separate schedule fires `/reporting` daily at 7am PT, producing an HTML diagnostic.
+A separate schedule fires `/reporting` daily at 7 AM PT, producing an HTML diagnostic in `persistence/reports/`.
 
 ## Setup
 
@@ -27,14 +29,14 @@ Runs unchanged on macOS, Linux, and Windows (Git Bash / MSYS).
 - `bash` ≥ 3.2 (macOS default works; Git Bash on Windows works)
 - `curl` (any recent version)
 - `jq` ≥ 1.6 — install via `winget install jqlang.jq` / `brew install jq` / `apt install jq`
-- `gh` (GitHub CLI) authenticated with the repo's owner account
+- `gh` (GitHub CLI), optional — useful for the initial clone if your remote is private
 - **macOS only, optional but recommended:** `brew install coreutils` to get `gdate`. Without it the helpers fall back to BSD `date` with translated flags — both paths are tested.
 
 ### Steps
 
 ```bash
 # 1. Clone
-gh repo clone khoks/ClaudeTrading
+git clone https://github.com/khoks/ClaudeTrading.git
 cd ClaudeTrading
 
 # 2. Drop creds in .env (never committed)
@@ -49,43 +51,54 @@ claude
 > /master_configurator
 ```
 
-`/master_configurator` walks through:
-- `user_preferences_intake` (pool tickers, risk, $/trade cap)
-- `user_custom_strategy_intake` (optional)
-- `prebuilt_strategy_configurator` (enable/tune trailing_stop, ladder_buys, wheel)
-- Registers two cron tasks via `mcp__scheduled-tasks__create_scheduled_task`.
+`/master_configurator` is the **mandatory first run** before any tick or report fires. It:
+
+- Bootstraps your local `pool.json`, `activation.json`, `user_preferences.json`, and `.claude/settings.json` from the shipped `.example` templates (all are gitignored — your data, your machine).
+- Walks you through `user_preferences_intake` (pool tickers, risk, $/trade cap), optional `user_custom_strategy_intake`, and `prebuilt_strategy_configurator` (enable/tune the prebuilt strategies). Strategy defaults shipped in `persistence/config/strategy_defaults.json` are the starting baseline.
+- Registers two cron tasks via `mcp__scheduled-tasks__create_scheduled_task` and stores their IDs + your chosen cadence in `activation.json`.
+- Tells you exactly what permissions were granted to scheduled-tick sessions in `.claude/settings.json` so you can review them.
+
+`master_trading` and `reporting` both check `activation.json.configured == true` at the top of every run and exit with a clear error if you skipped the configurator.
 
 ## Documentation
 
-- [`docs/FUNCTIONALITY.md`](docs/FUNCTIONALITY.md) — what the system does day-to-day: trading-day timeline, the H1B safety floor, master_trading orchestration, the four strategy cards, persistence, reporting, common operations.
+- [`docs/FUNCTIONALITY.md`](docs/FUNCTIONALITY.md) — what the system does day-to-day: trading-day timeline, the cooldown safety floor, master_trading orchestration, the strategy cards, persistence, reporting, common operations.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — how it's built and why: layer responsibilities, tick data flow, skill catalog, state schemas, library API reference, cross-cutting concerns, design decisions.
-- [`CLAUDE.md`](CLAUDE.md) — the hard rules (paper-only, never commit `.env`, etc.).
+- [`CLAUDE.md`](CLAUDE.md) — the hard rules (paper-only, must run configurator first, never commit `.env`, etc.). Loaded automatically by Claude Code.
 - `.claude/skills/<name>/SKILL.md` — per-skill specs (Claude reads these as code-by-prompt at runtime).
 
 ## Repo layout
 
 ```
-.claude/skills/    # 11 skills (configurator, tick, daily)
-lib/               # bash helpers: env, date (cross-platform), alpaca, pool, calendar
+.claude/skills/      # 13 skills (configurator, tick, daily)
+.claude/
+  settings.json.example  # recommended permission allowlist for scheduled sessions
+lib/                 # bash helpers: env, date (cross-platform), alpaca, pool, calendar
 persistence/
-  pool.json        # curated stocks + last buy/sell + per-stock strategy overrides
-  config/          # user prefs, strategy defaults, activation state
-  snapshots/       # tick (per-tick, 7-day TTL) | daily | weekly
-  reports/         # daily HTML reports
-.env               # GITIGNORED — Alpaca creds
-CLAUDE.md          # rules loaded by Claude Code
+  config/
+    strategy_defaults.json         # COMMITTED — shipped baseline tunables
+    activation.json.example        # template; real file is gitignored
+    user_preferences.json.example  # template; real file is gitignored
+  pool.json.example  # template; real file is gitignored
+  snapshots/         # tick (per-tick, 7-day TTL) | daily | weekly  (gitignored)
+  reports/           # daily HTML reports  (gitignored)
+docs/
+  FUNCTIONALITY.md
+  ARCHITECTURE.md
+.env                 # GITIGNORED — Alpaca creds
+CLAUDE.md            # rules loaded by Claude Code
 ```
 
 ## Security
 
-- `.env` is gitignored.
-- The remote scheduled agent gets the keys via the `mcp__scheduled-tasks` env map at activation time, not from the repo.
-- **If you can read this repo, rotate the Alpaca keys before going live.** Paste exposure during initial setup is a known risk.
+- `.env` is gitignored. Verify with `git status` before any commit.
+- Per-operator state (pool, snapshots, reports, activation, your tuned settings) is gitignored. Your trading data does not leave your machine.
+- The `.claude/settings.json` allowlist that scheduled sessions use is gitignored too — `master_configurator` materialises it from `.example` on first run, scoped to the project. Review it.
 
 ## Disclaimer
 
-The 2-trading-day cooldown is a user-defined safety margin. It is **not** legal, tax, or compliance advice and does not guarantee compliance with FINRA's pattern day trader rule or with IRS classification of trading income for H1B visa holders. Consult a tax advisor.
+The trading-day cooldown enforced by `safe_trading` is a user-defined safety margin. It is **not** legal, tax, or compliance advice and does not guarantee compliance with FINRA's pattern day trader rule, IRS classification of trading income, or any specific regulation that may apply to your visa, residency, or employment status. Consult a tax / legal advisor.
 
 ## License
 
-Private, personal use. Not redistributed.
+MIT. Use at your own risk; no warranty. Paper-trading only — ClaudeTrading does not place live orders.

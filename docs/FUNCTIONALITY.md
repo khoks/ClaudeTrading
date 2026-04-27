@@ -6,16 +6,20 @@ What this system *does*, day to day. For *how it's built* and design rationale, 
 
 ## 1. What this system is
 
-An autonomous Alpaca **paper-trading** system, driven entirely by Claude Code skills + Anthropic scheduled tasks.
+An autonomous Alpaca **paper-trading** system, driven entirely by Claude Code skills + Anthropic scheduled tasks. Shareable: anyone can clone, point it at their own paper account, and run their own bot on their machine.
 
-- **Pool** — a small curated list of stocks (currently 19 names: semis, AI infra, data-center REITs, biotech).
-- **Cadence** — every N minutes during PT market hours; N is configurable (currently 15).
-- **Strategies** — four cooperating policies (`profit_take`, `trailing_stop`, `mean_reversion`, `ladder_buys`); a fifth (`wheel`) is scaffolded but disabled.
-- **Safety floor** — every order runs through a 2-trading-day cooldown filter (`safe_trading`) to keep the operator clear of FINRA pattern-day-trader and IRS second-income classifications. The user is on H1B; this is the systemic guardrail.
-- **State** — pool, snapshots, configs, and reports are all JSON on disk, auto-committed to GitHub each tick.
+- **Pool** — a curated list of tickers the operator builds during `/master_configurator`. There's no shipped default pool.
+- **Cadence** — every N minutes during PT market hours; N is configurable (default 15) and stored in `persistence/config/activation.json`.
+- **Strategies** — four cooperating policies (`profit_take`, `trailing_stop`, `mean_reversion`, `ladder_buys`); a fifth (`wheel`) is scaffolded but disabled. Defaults shipped in `strategy_defaults.json` (committed); per-stock overrides in `pool.json` (gitignored).
+- **Safety floor** — every order runs through a configurable trading-day cooldown filter (`safe_trading`). Default: 2 trading days, designed to keep operators clear of pattern-day-trader and second-income classifications. Tunable via `SAFE_TRADING_THRESHOLD` env var. **Heuristic, not legal advice** — see disclaimer.
+- **State** — pool, snapshots, configs, and reports are all JSON on disk and **local to the operator**. They are gitignored; trading history does not leave the machine.
 - **Reports** — a single self-contained HTML file produced daily at 7am PT.
 
 Hard rules are enumerated in [`CLAUDE.md`](../CLAUDE.md).
+
+## 1.5. Mandatory first run
+
+A fresh clone has none of the per-operator config files (they're gitignored). Both `/master_trading` and `/reporting` check for `persistence/config/activation.json`.configured == true and exit with an error if missing. **Run `/master_configurator` first** — it bootstraps the config files from shipped `.example` templates, walks you through preferences, and registers the schedule.
 
 ---
 
@@ -44,7 +48,7 @@ Holidays and weekends: the cron still fires Mon–Fri 06:00–12:45, but `is_mar
 
 ---
 
-## 3. The H1B safety floor — `safe_trading`
+## 3. The trading-day cooldown — `safe_trading`
 
 This is the first thing every tick does. It runs once and produces two sets:
 
@@ -59,7 +63,9 @@ A stock can be in **both** sets (held position whose last sell was long ago). It
 
 **Strategies operate exclusively on these sets.** No strategy can place an order on a stock outside its respective set. This is the systemic guardrail; every strategy inherits it.
 
-> **Disclaimer.** The 2-trading-day window is a user-defined heuristic. It is **not** legal, tax, or compliance advice and does not guarantee compliance with FINRA's PDT rule or IRS classification of trading income for H1B holders. Consult a tax advisor.
+The threshold (default 2 trading days) is the operator's safety margin. Configure via `SAFE_TRADING_THRESHOLD` env var if you want a different value. The shipped default of 2 is calibrated for operators avoiding pattern-day-trader and second-income heuristics (e.g., H1B visa holders), but the system is policy-neutral — anyone can retune.
+
+> **Disclaimer.** The cooldown window is a user-defined heuristic. It is **not** legal, tax, or compliance advice and does not guarantee compliance with FINRA's PDT rule, IRS classification of trading income, or any specific regulation that may apply to the operator's visa, residency, or employment status. Consult a tax / legal advisor.
 
 ---
 
@@ -210,22 +216,9 @@ A stock can be in **both** sets (held position whose last sell was long ago). It
 
 `prune_tick.sh` removes any `persistence/snapshots/tick/*.json` older than 7 days (configurable via `PRUNE_DAYS` env var). Daily and weekly snapshots are retained indefinitely.
 
-### Git commit
+### No git commit — by design
 
-After writing the tick snapshot and any rollups, `state_persistence` runs:
-
-```bash
-cd "$REPO_ROOT"
-git add persistence/
-if git diff --cached --quiet; then
-  echo "no state changes"; exit 0
-fi
-git -c user.email=trading@claude.local -c user.name="ClaudeTrading bot" \
-    commit -m "state: $(date -u +%FT%TZ)"
-git push
-```
-
-The bot identity (`trading@claude.local`) makes machine-driven commits visually distinct from operator commits.
+Snapshots, reports, `pool.json`, and per-operator config files are gitignored. State_persistence does **not** commit or push. Trading history stays on the operator's machine. If you want cross-machine portability or an audit log, set up your own backup mechanism (private mirror, rsync to NAS, encrypted cloud bucket, etc.) — the public repo is for code, not data.
 
 ---
 
@@ -242,17 +235,17 @@ Fires once daily at 7am PT (Mon–Fri) via the `claudetrading-daily-report` sche
 5. **Pool table** — every stock in the pool: last buy, last sell, watermark, stop, total realized profit.
 6. **Schedule status** — current `activation.json` (configured? activated_at? schedule IDs?).
 
-### Auto-commit
+### Local-only
 
-`generate_report.sh` stages, commits, and pushes the new HTML file (scoped to `persistence/reports/<today>.html` — does not collide with concurrent state_persistence runs). Non-fatal: if git fails, the HTML is already on disk and the path is still returned.
+The HTML report is gitignored — your daily diagnostics stay on your machine. `generate_report.sh` writes the file and prints the absolute path; nothing more.
 
 ---
 
 ## 8. Configuration files
 
-All of these live under `persistence/config/` and are committed to git.
+All of these live under `persistence/config/`. **Most are gitignored** — only `strategy_defaults.json` is committed (as the shipped baseline that new operators inherit). The repo ships `.example` templates for the gitignored ones; `master_configurator` bootstraps the real files from those examples on first run.
 
-### `activation.json`
+### `activation.json` *(gitignored — created by master_configurator)*
 
 Single source of truth for the schedule.
 
@@ -270,7 +263,7 @@ Single source of truth for the schedule.
 
 `tick_cadence_minutes` is read by `lib/calendar.sh::is_last_tick_of_trading_day` to compute the "is this the last tick" window, so it self-corrects when you change cadence. Keep it in sync with the cron expression on the scheduled task.
 
-### `user_preferences.json`
+### `user_preferences.json` *(gitignored — created by user_preferences_intake)*
 
 Operator-level preferences from `user_preferences_intake`.
 
@@ -286,9 +279,9 @@ Operator-level preferences from `user_preferences_intake`.
 
 `max_per_trade_usd` is enforced by every buy strategy as `notional = min(strategy.buy_amount_usd, max_per_trade_usd, available_cash)`.
 
-### `strategy_defaults.json`
+### `strategy_defaults.json` *(committed — shipped repo baseline)*
 
-Per-strategy defaults from `prebuilt_strategy_configurator`. Per-stock overrides live in `pool.json[stock].strategy_config.<name>` and take precedence (merged via `pool_strategy_config <symbol> <strategy_name>`).
+Per-strategy defaults. New operators inherit the shipped values; `prebuilt_strategy_configurator` lets them retune for their account. Per-stock overrides live in `pool.json[stock].strategy_config.<name>` (gitignored) and take precedence over these defaults (merged via `pool_strategy_config <symbol> <strategy_name>`).
 
 ```json
 {
@@ -300,9 +293,9 @@ Per-strategy defaults from `prebuilt_strategy_configurator`. Per-stock overrides
 }
 ```
 
-### `pool.json`
+### `pool.json` *(gitignored — managed by user_preferences_intake + strategies during ticks)*
 
-Per-stock state. See [ARCHITECTURE.md §5](./ARCHITECTURE.md#5-state-schemas) for the full schema.
+Per-stock state including last buy/sell, watermarks, stop losses, per-strategy state. See [ARCHITECTURE.md §5](./ARCHITECTURE.md#5-state-schemas) for the full schema.
 
 ---
 
@@ -331,11 +324,10 @@ Run `/user_preferences_intake` and explicitly drop. The skill will confirm befor
 
 ### Change cadence (e.g. 15 → 30 min)
 1. `mcp__scheduled-tasks__update_scheduled_task` with `cronExpression: "*/30 6-12 * * 1-5"`.
-2. Update `persistence/config/activation.json` → `tick_cadence_minutes: 30`.
-3. Commit + push both.
+2. Update `persistence/config/activation.json` → `tick_cadence_minutes: 30`. (Local-only edit; not committed.)
 
 ### Disable a strategy temporarily
-Edit `persistence/config/strategy_defaults.json` → set `<name>.enabled: false`. Commit + push. master_trading will skip it on the next tick.
+Edit `persistence/config/strategy_defaults.json` → set `<name>.enabled: false`. master_trading will skip it on the next tick. (This file is committed, so the change is part of repo history if you push.)
 
 ### Disable trading entirely (pause the schedule)
 `mcp__scheduled-tasks__update_scheduled_task` with `enabled: false` for `claudetrading-master-tick`. Reports continue. To resume: `enabled: true`.
@@ -350,7 +342,10 @@ From the project root: `claude -p '/master_trading'`. Skill checks `is_market_op
 4. For mean_reversion silence specifically: the per-stock `last_buy.timestamp` may be within 2 hours of `now` (rebuy throttle), or current price below the 50-day MA (falling-knife guard).
 
 ### Reconfigure from scratch
-`/master_configurator`. It detects `configured: true` and asks whether to RECONFIGURE or CANCEL. RECONFIGURE re-runs the three intake skills in order.
+`/master_configurator`. It detects whether `activation.json` exists and is configured; if yes, it asks whether to RECONFIGURE or CANCEL. RECONFIGURE re-runs the three intake skills in order.
+
+### Fresh-clone setup
+On a brand-new clone, `activation.json` doesn't exist (it's gitignored). Just `cp .env.example .env`, paste creds, then run `/master_configurator` — it bootstraps all the gitignored config files from `.example` templates and walks you through setup.
 
 ---
 

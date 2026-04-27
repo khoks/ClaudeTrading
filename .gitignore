@@ -16,9 +16,30 @@ desktop.ini
 .vscode/
 .idea/
 
-# Claude session-local junk (settings.local.json may contain user-specific overrides)
+# Claude Code project settings — local-only.
+# .example files in this repo show the recommended baseline. master_configurator
+# materialises the real settings.json on first run; subsequent edits stay local.
+.claude/settings.json
 .claude/settings.local.json
 
-# Note: persistence/snapshots/** ARE intentionally committed.
-# The remote scheduled agent's filesystem is ephemeral, so trading state
-# (snapshots, pool.json, config/*.json, reports) lives in the repo itself.
+# Per-operator trading state — local-only.
+# These files contain ticker pool, trade history, schedule IDs, and tunables
+# that are specific to whoever runs this clone. master_configurator and the
+# intake skills create them on first run.
+persistence/pool.json
+persistence/config/activation.json
+persistence/config/user_preferences.json
+
+# Per-operator snapshots and reports — local-only.
+# Trading history is private to whoever runs the system. The directory
+# structure is preserved via .gitkeep markers.
+persistence/snapshots/tick/*.json
+persistence/snapshots/daily/*.json
+persistence/snapshots/weekly/*.json
+persistence/reports/*.html
+
+# What IS committed (intentional, for reference):
+#   persistence/config/strategy_defaults.json — repo baseline tunables
+#   persistence/snapshots/{tick,daily,weekly}/.gitkeep
+#   persistence/reports/.gitkeep
+#   *.example.json templates
