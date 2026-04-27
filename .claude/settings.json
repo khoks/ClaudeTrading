@@ -20,6 +20,7 @@
       "Bash(echo:*)",
       "Bash(source:*)",
       "Bash(test:*)",
+      "Bash([:*)",
       "Read",
       "Write",
       "Edit",
@@ -28,8 +29,6 @@
       "mcp__scheduled-tasks__list_scheduled_tasks"
     ],
     "ask": [
-      "Bash(git push:*)",
-      "Bash(git commit:*)",
       "Bash(gh repo create:*)",
       "Bash(gh repo delete:*)",
       "mcp__scheduled-tasks__create_scheduled_task",
