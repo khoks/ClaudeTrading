@@ -18,7 +18,7 @@ source "$REPO_ROOT/lib/alpaca.sh"
 if [ $# -ge 1 ]; then envelope="$1"; else envelope="$(cat)"; fi
 
 tick_at=$(jq -r '.tick_at' <<<"$envelope")
-fname=$(date -u -d "$tick_at" +%Y-%m-%dT%H-%M 2>/dev/null) || fname=$(date -u +%Y-%m-%dT%H-%M)
+fname=$(date_iso_to_filename "$tick_at" 2>/dev/null) || fname=$(date_epoch_to_filename "$(date_now_epoch)")
 out="$REPO_ROOT/persistence/snapshots/5min/${fname}.json"
 
 # Pull live data.

@@ -34,6 +34,7 @@ pool_read() {
 }
 
 # pool_write <json> — atomically replaces pool.json.
+# (CRLF stripping is handled by the jq shim in lib/env.sh.)
 pool_write() {
   local tmp
   tmp="$(mktemp)"
@@ -52,31 +53,8 @@ pool_get_stock() {
 
 # pool_add_stock <symbol> — adds with empty trade history if not present.
 pool_add_stock() {
-  local symbol="$1" now
-  now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  pool_read | jq --arg s "$symbol" --arg t "$now" '
-    if (.stocks | map(.symbol) | index($s)) then .
-    else .stocks += [{
-      symbol: $s,
-      added_at: $t,
-      last_buy:  { timestamp: null, price: null, qty: null, amount_usd: null },
-      last_sell: { timestamp: null, price: null, qty: null, amount_usd: null },
-      high_watermark: null,
-      stop_loss: { price: null, trail_percent: null },
-      strategy_config: { trailing_stop: {}, ladder_buys: {}, wheel: {} },
-      total_profit_usd: 0,
-      total_invested_usd: 0
-    }] end' | (read -r out; pool_write "$out") || {
-      # The subshell read trick above doesn't actually pipe correctly across
-      # functions in all bash versions; do it the simple way instead:
-      :
-    }
-}
-
-# Simpler, robust version using a temp variable:
-pool_add_stock() {
   local symbol="$1" now updated
-  now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  now="$(date_now_iso)"
   updated=$(pool_read | jq --arg s "$symbol" --arg t "$now" '
     if (.stocks | map(.symbol) | index($s)) then .
     else .stocks += [{

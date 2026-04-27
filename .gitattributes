@@ -1,0 +1,15 @@
+# Force LF for shell scripts and JSON state. Windows clones with
+# core.autocrlf=true would otherwise check these out as CRLF, which:
+#   * breaks bash (interpreter sees `\r` in shebang/strings)
+#   * makes pool.json / snapshot files dirty on every save
+#
+# Markdown/text default to git's auto handling so editors can normalize freely.
+
+*.sh   text eol=lf
+*.json text eol=lf
+
+# Binary-ish defaults
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary

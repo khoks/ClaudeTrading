@@ -14,7 +14,7 @@ source "$REPO_ROOT/lib/env.sh"
 # shellcheck disable=SC1091
 source "$REPO_ROOT/lib/alpaca.sh"
 
-today=$(date -u +%Y-%m-%d)
+today=$(date_today_utc)
 out="$REPO_ROOT/persistence/reports/${today}.html"
 
 # Live data
@@ -36,13 +36,16 @@ activation=$( [ -f "$activation_file" ] && cat "$activation_file" || echo '{}')
 
 # Past 30 days of daily snapshots → strategy effectiveness.
 shopt -s nullglob
-recent_dailies=( "$REPO_ROOT/persistence/snapshots/daily/"*.json )
+all_dailies=( "$REPO_ROOT/persistence/snapshots/daily/"*.json )
 shopt -u nullglob
 
 # Take the last 30 entries (sorted by name = sorted by date).
-n=${#recent_dailies[@]}
-start=$(( n > 30 ? n - 30 : 0 ))
-recent_dailies=( "${recent_dailies[@]:$start}" )
+n=${#all_dailies[@]}
+recent_dailies=()
+if [ "$n" -gt 0 ]; then
+  start=$(( n > 30 ? n - 30 : 0 ))
+  recent_dailies=( "${all_dailies[@]:$start}" )
+fi
 
 if [ ${#recent_dailies[@]} -gt 0 ]; then
   strat_counts=$(jq -s '
@@ -85,7 +88,7 @@ cat <<EOF
 <body>
 
 <h1>ClaudeTrading — $today</h1>
-<p class="small">Generated $(date -u +%FT%TZ)</p>
+<p class="small">Generated $(date_now_iso)</p>
 
 <h2>Account</h2>
 <table>

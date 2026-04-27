@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # lib/calendar.sh — market hours and trading-day math via Alpaca's calendar API.
 #
-# Sources required: lib/env.sh, lib/alpaca.sh
+# Sources required: lib/env.sh (which auto-sources lib/date.sh), lib/alpaca.sh.
 
 if [ -z "${ALPACA_KEY:-}" ]; then
   echo "calendar.sh: source lib/env.sh and lib/alpaca.sh first" >&2
@@ -15,7 +15,7 @@ is_market_open() {
   [ "$open" = "true" ]
 }
 
-# market_close_iso — prints today's market close timestamp (ISO-8601, ET).
+# market_close_iso — prints today's market close timestamp (ISO-8601 with TZ).
 market_close_iso() {
   alpaca_clock | jq -r '.next_close'
 }
@@ -23,11 +23,10 @@ market_close_iso() {
 # is_last_tick_of_trading_day — true if (now + 5 min) >= today's market_close.
 # Used by state_persistence to decide whether to also write a daily snapshot.
 is_last_tick_of_trading_day() {
-  local now_epoch close_epoch close_iso
+  local close_iso close_epoch now_epoch
   close_iso=$(alpaca_clock | jq -r '.next_close')
-  # Strip timezone and parse via date. Alpaca returns e.g. 2026-04-26T16:00:00-04:00
-  close_epoch=$(date -d "$close_iso" +%s 2>/dev/null) || return 1
-  now_epoch=$(date -u +%s)
+  close_epoch=$(date_iso_to_epoch "$close_iso") || return 1
+  now_epoch=$(date_now_epoch)
   # Within 5 minutes (300s) of close → treat as last tick.
   [ $(( close_epoch - now_epoch )) -le 300 ]
 }
@@ -35,14 +34,14 @@ is_last_tick_of_trading_day() {
 # is_last_trading_day_of_week — true if today is the last trading day of the
 # current ISO week (calendar API: next trading day's ISO week ≠ today's).
 is_last_trading_day_of_week() {
-  local today next today_week next_week
-  today=$(date -u +%Y-%m-%d)
-  # Look ahead 5 days; the next entry is the next trading day.
-  next=$(alpaca_calendar "$today" "$(date -u -d "$today + 7 days" +%Y-%m-%d)" \
+  local today next today_week next_week end
+  today=$(date_today_utc)
+  end=$(date_offset_days "$today" "+7")
+  next=$(alpaca_calendar "$today" "$end" \
     | jq -r --arg t "$today" '[.[] | select(.date > $t)] | first | .date // empty')
   [ -z "$next" ] && return 1
-  today_week=$(date -d "$today" +%G-W%V)
-  next_week=$(date -d "$next" +%G-W%V)
+  today_week=$(date_iso_week "$today")
+  next_week=$(date_iso_week "$next")
   [ "$today_week" != "$next_week" ]
 }
 
@@ -58,11 +57,16 @@ is_last_trading_day_of_week() {
 #
 # The safe_trading rule "older than 2 trading days" therefore checks ≥ 2.
 trading_days_ago() {
-  local iso="$1"
-  [ -z "$iso" ] && { echo 0; return; }
-  local from to
-  from=$(date -d "$iso" +%Y-%m-%d 2>/dev/null) || { echo 0; return; }
-  to=$(date -u +%Y-%m-%d)
+  local iso="${1:-}"
+  if [ -z "$iso" ]; then echo 0; return; fi
+  local from to from_epoch
+  from_epoch=$(date_iso_to_epoch "$iso") || { echo 0; return; }
+  if [ "$_DATE_FLAVOR" = "gnu" ]; then
+    from=$($_DATE -u -d "@$from_epoch" +%Y-%m-%d)
+  else
+    from=$($_DATE -u -r "$from_epoch" +%Y-%m-%d)
+  fi
+  to=$(date_today_utc)
   if [ "$from" = "$to" ]; then echo 0; return; fi
   alpaca_calendar "$from" "$to" \
     | jq --arg from "$from" --arg to "$to" \

@@ -14,7 +14,7 @@ source "$REPO_ROOT/lib/env.sh"
 # shellcheck disable=SC1091
 source "$REPO_ROOT/lib/alpaca.sh"
 
-today=$(date -u +%Y-%m-%d)
+today=$(date_today_utc)
 out="$REPO_ROOT/persistence/snapshots/daily/${today}.json"
 
 snaps_glob="$REPO_ROOT/persistence/snapshots/5min/${today}T*.json"
@@ -28,15 +28,18 @@ if [ ${#files[@]} -eq 0 ]; then
   exit 0
 fi
 
+# Bash 3.2 (macOS default) doesn't support negative array indexing.
+last_idx=$(( ${#files[@]} - 1 ))
+
 opening_equity=$(jq -r '.account.equity' "${files[0]}")
-closing_equity=$(jq -r '.account.equity' "${files[-1]}")
+closing_equity=$(jq -r '.account.equity' "${files[$last_idx]}")
 day_pl=$(jq -nc --argjson c "$closing_equity" --argjson o "$opening_equity" '$c - $o')
 
 # Aggregate every action across all 5-min snapshots into one array.
 all_actions=$(jq -s '[ .[].actions[]? ]' "${files[@]}")
 
 # Final positions snapshot.
-final_positions=$(jq -c '.positions' "${files[-1]}")
+final_positions=$(jq -c '.positions' "${files[$last_idx]}")
 
 jq -n \
   --arg date "$today" \

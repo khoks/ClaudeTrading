@@ -22,10 +22,13 @@ A separate schedule fires `/reporting` daily at 7am PT, producing an HTML diagno
 
 ### Prerequisites
 
-- `bash` (Git Bash on Windows is fine)
+Runs unchanged on macOS, Linux, and Windows (Git Bash / MSYS).
+
+- `bash` ≥ 3.2 (macOS default works; Git Bash on Windows works)
 - `curl` (any recent version)
 - `jq` ≥ 1.6 — install via `winget install jqlang.jq` / `brew install jq` / `apt install jq`
 - `gh` (GitHub CLI) authenticated with the repo's owner account
+- **macOS only, optional but recommended:** `brew install coreutils` to get `gdate`. Without it the helpers fall back to BSD `date` with translated flags — both paths are tested.
 
 ### Steps
 
@@ -56,7 +59,7 @@ claude
 
 ```
 .claude/skills/    # 11 skills (configurator, tick, daily)
-lib/               # bash helpers: env, alpaca, pool, calendar
+lib/               # bash helpers: env, date (cross-platform), alpaca, pool, calendar
 persistence/
   pool.json        # curated stocks + last buy/sell + per-stock strategy overrides
   config/          # user prefs, strategy defaults, activation state

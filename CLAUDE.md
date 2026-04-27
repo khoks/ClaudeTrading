@@ -18,7 +18,7 @@ Autonomous Alpaca **paper-trading** system, driven entirely by Claude Code skill
 
 ## Repo map (quick)
 
-- `lib/` — shared bash helpers (`env.sh`, `alpaca.sh`, `pool.sh`, `calendar.sh`).
+- `lib/` — shared bash helpers (`env.sh`, `date.sh`, `alpaca.sh`, `pool.sh`, `calendar.sh`). `lib/date.sh` is the cross-platform `date` shim — Linux/Git Bash/macOS-with-`gdate` use GNU; macOS without `gdate` uses BSD with translated flags. Always go through the `date_*` helpers, never call `date -d` directly.
 - `.claude/skills/` — 11 skills (see catalog below).
 - `persistence/` — all state. The remote agent reads/writes here.
 - `.env` (local-only) — Alpaca creds. Mirrored as runtime env vars on the scheduled-task side.
@@ -58,6 +58,7 @@ source lib/env.sh && source lib/alpaca.sh && alpaca_clock | jq .is_open
 claude -p '/master_trading'
 
 # Inspect today's report
-xdg-open persistence/reports/$(date -u +%F).html  # Linux/Mac
-start    persistence/reports/$(date -u +%F).html  # Windows
+open     persistence/reports/$(date -u +%F).html  # macOS
+xdg-open persistence/reports/$(date -u +%F).html  # Linux
+start    persistence/reports/$(date -u +%F).html  # Windows / Git Bash
 ```

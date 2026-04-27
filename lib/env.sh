@@ -17,6 +17,9 @@ _env_self="${BASH_SOURCE[0]}"
 _env_dir="$(cd "$(dirname "$_env_self")" && pwd)"
 export REPO_ROOT="$(cd "$_env_dir/.." && pwd)"
 
+# shellcheck disable=SC1091
+. "$_env_dir/date.sh"   # cross-platform date helpers; idempotent
+
 if [ -f "$REPO_ROOT/.env" ]; then
   set -a
   # shellcheck disable=SC1091
@@ -30,3 +33,15 @@ fi
 : "${ALPACA_DATA_BASE:=https://data.alpaca.markets/v2}"
 
 export ALPACA_KEY ALPACA_SECRET ALPACA_BASE ALPACA_DATA_BASE
+
+# --- jq normalization shim ---------------------------------------------------
+# The jq build shipped via `winget install jqlang.jq` writes CRLF on stdout
+# (Windows text mode). That breaks shell comparisons, integer parsing, filename
+# use, and date parsing. Wrap jq so it always emits LF. Idempotent on
+# Linux/macOS where jq already emits LF. `set -o pipefail` (used by every
+# script) preserves jq's real exit code through the pipe, so `jq -e` still
+# works.
+jq() {
+  command jq "$@" | tr -d '\r'
+}
+export -f jq

@@ -26,9 +26,14 @@ THRESHOLD="${SAFE_TRADING_THRESHOLD:-2}"
 sellable=()
 buyable=()
 
-# Iterate symbols. Skip the loop entirely if pool is empty.
-mapfile -t symbols < <(pool_symbols)
-for sym in "${symbols[@]}"; do
+# Iterate symbols. Use while-read instead of `mapfile` (bash 4+) so the script
+# runs unchanged on macOS bash 3.2.
+symbols=()
+while IFS= read -r line; do
+  [ -n "$line" ] && symbols+=( "$line" )
+done < <(pool_symbols)
+
+for sym in "${symbols[@]+"${symbols[@]}"}"; do
   [ -z "$sym" ] && continue
   stock_json="$(pool_get_stock "$sym")"
   last_buy_ts=$(jq -r '.last_buy.timestamp // empty'  <<<"$stock_json")
@@ -49,9 +54,19 @@ for sym in "${symbols[@]}"; do
   fi
 done
 
-# Emit single-line JSON.
+# Emit single-line JSON. The `${arr[@]+"${arr[@]}"}` form keeps bash 3.2 (macOS)
+# happy under `set -u` when the array is empty.
+to_json_array() {
+  # $@ : zero or more strings → JSON array of strings
+  if [ "$#" -eq 0 ]; then echo '[]'; return; fi
+  printf '%s\n' "$@" | jq -R . | jq -s .
+}
+
+s_json=$(to_json_array "${sellable[@]+"${sellable[@]}"}")
+b_json=$(to_json_array "${buyable[@]+"${buyable[@]}"}")
+
 jq -nc \
-  --argjson s "$(printf '%s\n' "${sellable[@]}" | jq -R . | jq -s .)" \
-  --argjson b "$(printf '%s\n' "${buyable[@]}"  | jq -R . | jq -s .)" \
-  '{ sellable: ($s // [] | map(select(. != ""))),
-     buyable:  ($b // [] | map(select(. != ""))) }'
+  --argjson s "$s_json" \
+  --argjson b "$b_json" \
+  '{ sellable: ($s | map(select(. != ""))),
+     buyable:  ($b | map(select(. != ""))) }'
