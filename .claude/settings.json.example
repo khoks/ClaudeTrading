@@ -35,5 +35,18 @@
       "mcp__scheduled-tasks__create_scheduled_task",
       "mcp__scheduled-tasks__update_scheduled_task"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/check_design_change.sh"
+          }
+        ]
+      }
+    ]
   }
 }
