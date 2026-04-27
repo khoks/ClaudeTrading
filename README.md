@@ -6,25 +6,7 @@ Autonomous Alpaca paper-trading system driven by Claude Code skills + Anthropic 
 
 ## At a glance
 
-```mermaid
-flowchart LR
-    You["👤 <b>You</b><br/>📋 Curated tickers<br/>⚖️ Risk + $/trade cap<br/>🔑 Alpaca paper key"]
-
-    subgraph Engine["🤖 ClaudeTrading engine"]
-      direction TB
-      Tick["⏰ Tick every N min<br/>during market hours"]
-      Safe["🛡️ Cooldown filter<br/>(N-trading-day floor)"]
-      Strats["📐 4 strategies<br/>sells: profit_take · trailing_stop<br/>buys: mean_reversion · ladder_buys"]
-      Tick --> Safe --> Strats
-    end
-
-    Trades["💱 Paper trades<br/>on Alpaca"]
-    Report["📰 Daily HTML report<br/>7 AM local time"]
-
-    You ==> Engine
-    Engine ==> Trades
-    Engine ==> Report
-```
+![ClaudeTrading at a glance](docs/img/at-a-glance.svg)
 
 **What you get out:** strategies that scale into positions on the way down, scale out on the way up, and protect with trailing stops — all gated behind a configurable cooldown so you stay clear of pattern-day-trader and second-income classifications. Trading state stays on your machine; nothing leaves your laptop unless you decide to back it up.
 
@@ -46,17 +28,7 @@ A separate schedule fires `/reporting` daily at 7 AM PT, producing an HTML diagn
 
 ## Setup
 
-```mermaid
-flowchart LR
-    S1["1️⃣<br/><b>Clone</b><br/><code>git clone</code>"]
-    S2["2️⃣<br/><b>Install</b><br/>jq · curl · gh"]
-    S3["3️⃣<br/><b>Add creds</b><br/><code>cp .env.example .env</code><br/>paste Alpaca paper key"]
-    S4["4️⃣<br/><b>Launch</b><br/><code>claude</code>"]
-    S5["5️⃣<br/><b>Configure</b><br/><code>/master_configurator</code>"]
-    Done(["✅<br/><b>Live</b><br/>schedule fires<br/>on next market open"])
-
-    S1 --> S2 --> S3 --> S4 --> S5 --> Done
-```
+![Setup in 5 steps](docs/img/setup.svg)
 
 `/master_configurator` does the rest: bootstraps your gitignored config files from the shipped `.example` templates, walks you through pool / risk / caps / cadence, registers the cron schedule, discloses the permission allowlist it set up. After it finishes you're done — ticks fire automatically.
 
