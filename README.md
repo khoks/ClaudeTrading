@@ -34,13 +34,15 @@ A separate schedule fires `/reporting` daily at 7 AM PT, producing an HTML diagn
 
 ### Prerequisites
 
-Runs unchanged on macOS, Linux, and Windows (Git Bash / MSYS).
+**Tested on macOS, Linux, and Windows (Git Bash / MSYS).** All commands below work identically across platforms — the cross-platform shim in `lib/date.sh` handles GNU vs BSD `date`, and `lib/tz.sh` uses POSIX timezone names so it works on any OS.
 
-- `bash` ≥ 3.2 (macOS default works; Git Bash on Windows works)
-- `curl` (any recent version)
-- `jq` ≥ 1.6 — install via `winget install jqlang.jq` / `brew install jq` / `apt install jq`
-- `gh` (GitHub CLI), optional — useful for the initial clone if your remote is private
-- **macOS only, optional but recommended:** `brew install coreutils` to get `gdate`. Without it the helpers fall back to BSD `date` with translated flags — both paths are tested.
+| | install |
+|---|---|
+| `bash` ≥ 3.2 | macOS default (3.2) is sufficient. Linux: pre-installed. Windows: bundled with Git for Windows. |
+| `curl` | Pre-installed on macOS, Linux, and Git Bash. |
+| `jq` ≥ 1.6 | macOS: `brew install jq` · Linux: `apt install jq` (or `dnf install jq`) · Windows: `winget install jqlang.jq` |
+| `gh` (optional) | macOS: `brew install gh` · Linux: see [github.com/cli/cli](https://github.com/cli/cli#installation) · Windows: `winget install GitHub.cli` |
+| `coreutils` (macOS-only, optional) | `brew install coreutils` to get `gdate`. Without it, `lib/date.sh` falls back to BSD `date` with translated flags — both code paths are tested. |
 
 ### Steps
 

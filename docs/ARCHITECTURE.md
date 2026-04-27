@@ -16,7 +16,7 @@ How this system is built. For *what it does* day-to-day, see [FUNCTIONALITY.md](
                                  │ fires
                 ┌────────────────▼────────────────────────────┐
                 │   New Claude Code session per fire          │
-                │     - cd D:/DEV/ClaudeProjects/ClaudeTrading│
+                │     - cd $REPO_ROOT  (operator's clone)     │
                 │     - source lib/env.sh (incl. .env)        │
                 │     - invoke /master_trading or /reporting  │
                 └────────────────┬────────────────────────────┘
