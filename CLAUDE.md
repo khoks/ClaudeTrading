@@ -31,7 +31,7 @@ Autonomous Alpaca **paper-trading** system, driven entirely by Claude Code skill
 - `user_custom_strategy_intake` — scaffolds new strategy skills.
 - `prebuilt_strategy_configurator` — enables/tunes trailing_stop, ladder_buys, wheel.
 
-**Tick tier (schedule-invoked every 5 min during PT trading hours):**
+**Tick tier (schedule-invoked on the configured tick cadence during PT trading hours; cadence lives in `persistence/config/activation.json`.tick_cadence_minutes):**
 - `master_trading` — orchestrates one tick.
 - `safe_trading` — filters pool into sellable + buyable sets.
 - `strategy_trailing_stop`, `strategy_ladder_buys`, `strategy_wheel` — strategy implementations.
@@ -43,7 +43,7 @@ Autonomous Alpaca **paper-trading** system, driven entirely by Claude Code skill
 ## Recurring tasks etiquette
 
 - Never run `master_trading` outside its schedule unless the user explicitly asks for a manual tick.
-- When debugging, prefer reading recent snapshots from `persistence/snapshots/5min/` over hitting Alpaca repeatedly.
+- When debugging, prefer reading recent snapshots from `persistence/snapshots/tick/` over hitting Alpaca repeatedly.
 
 ## Helpful one-liners
 

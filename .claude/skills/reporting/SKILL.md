@@ -1,6 +1,6 @@
 ---
 name: reporting
-description: This skill should be used when fired by the daily 7am PT schedule, or when the user asks to "generate trading report", "show me yesterday's report", "produce daily HTML report". Reads recent daily and 5-min snapshots, the pool, and live market context, then writes a single self-contained HTML file to persistence/reports/<YYYY-MM-DD>.html with positions, day/week P/L, per-strategy effectiveness, and market context.
+description: This skill should be used when fired by the daily 7am PT schedule, or when the user asks to "generate trading report", "show me yesterday's report", "produce daily HTML report". Reads recent daily and per-tick snapshots, the pool, and live market context, then writes a single self-contained HTML file to persistence/reports/<YYYY-MM-DD>.html with positions, day/week P/L, per-strategy effectiveness, and market context.
 version: 0.1.0
 ---
 
@@ -45,4 +45,4 @@ Plain, factual. No suggestions or trade calls in the report — those decisions 
 ## Reuse
 
 - All `lib/*.sh`.
-- Reads `persistence/snapshots/daily/`, `persistence/snapshots/weekly/`, `persistence/snapshots/5min/`, `persistence/pool.json`, `persistence/config/activation.json`.
+- Reads `persistence/snapshots/daily/`, `persistence/snapshots/weekly/`, `persistence/snapshots/tick/`, `persistence/pool.json`, `persistence/config/activation.json`.

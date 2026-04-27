@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# state_persistence/scripts/snapshot_5min.sh
+# state_persistence/scripts/snapshot_tick.sh
 #
-# Writes persistence/snapshots/5min/<YYYY-MM-DDTHH-mm>.json.
+# Writes persistence/snapshots/tick/<YYYY-MM-DDTHH-mm>.json — one snapshot
+# per master_trading invocation, regardless of cadence (5/15/N min).
 # Reads envelope JSON either from $1 (positional arg) or stdin.
 
 set -euo pipefail
@@ -19,14 +20,14 @@ if [ $# -ge 1 ]; then envelope="$1"; else envelope="$(cat)"; fi
 
 tick_at=$(jq -r '.tick_at' <<<"$envelope")
 fname=$(date_iso_to_filename "$tick_at" 2>/dev/null) || fname=$(date_epoch_to_filename "$(date_now_epoch)")
-out="$REPO_ROOT/persistence/snapshots/5min/${fname}.json"
+out="$REPO_ROOT/persistence/snapshots/tick/${fname}.json"
 
 # Pull live data.
 account=$(alpaca_account)
 positions=$(alpaca_positions)
 
-# Find prior 5-min snapshot for delta calc.
-prev=$(ls -1 "$REPO_ROOT/persistence/snapshots/5min/"*.json 2>/dev/null | { grep -v "$out" || true; } | sort | tail -1 || true)
+# Find prior tick snapshot for equity-delta calc.
+prev=$(ls -1 "$REPO_ROOT/persistence/snapshots/tick/"*.json 2>/dev/null | { grep -v "$out" || true; } | sort | tail -1 || true)
 prev_equity="null"
 if [ -n "$prev" ]; then
   prev_equity=$(jq -r '.account.equity // "null"' "$prev")
@@ -51,7 +52,7 @@ jq -n \
     positions: $positions,
     actions: $actions,
     sets: $sets,
-    equity_delta_5min: $delta
+    equity_delta_vs_prev_tick: $delta
   }' > "$out"
 
 echo "$out"

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# state_persistence/scripts/prune_5min.sh
+# state_persistence/scripts/prune_tick.sh
 #
-# Removes 5-min snapshots older than the retention window (default 7 days).
+# Removes per-tick snapshots older than the retention window (default 7 days).
+# Cadence-agnostic — operates on whatever's in persistence/snapshots/tick/.
 
 set -euo pipefail
 
@@ -13,7 +14,7 @@ export REPO_ROOT
 source "$REPO_ROOT/lib/env.sh"   # provides date helpers via lib/date.sh
 
 DAYS="${PRUNE_DAYS:-7}"
-DIR="$REPO_ROOT/persistence/snapshots/5min"
+DIR="$REPO_ROOT/persistence/snapshots/tick"
 
 # Compute cutoff in YYYY-MM-DD format. Anything older than cutoff goes.
 cutoff=$(date_offset_days now "-$DAYS")
@@ -29,4 +30,4 @@ for f in "$DIR"/*.json; do
   fi
 done
 
-echo "pruned $removed 5-min snapshots older than $cutoff"
+echo "pruned $removed per-tick snapshots older than $cutoff"

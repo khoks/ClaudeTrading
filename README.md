@@ -6,7 +6,7 @@ Autonomous Alpaca paper-trading system driven by Claude Code skills + Anthropic 
 
 ## How it works
 
-Every 5 minutes during US market hours (Mon–Fri 6:30am–1:00pm PT), a scheduled remote Claude agent fires `/master_trading`. The skill:
+On the configured tick cadence during US market hours (Mon–Fri 6:30am–1:00pm PT), a scheduled Claude agent fires `/master_trading`. The cadence lives in `persistence/config/activation.json` as `tick_cadence_minutes` and is set by `/master_configurator`. The skill:
 
 1. Checks the market is open via Alpaca's `/v2/clock`.
 2. Runs `safe_trading` to filter the curated pool into a **sellable set** (last buy older than 2 trading days) and a **buyable set** (last sell older than 2 trading days, or never sold). This is the H1B-safety filter — the user must not be classified as a pattern day trader, so positions must rest at least 2 trading days between opposite-direction trades.
@@ -63,7 +63,7 @@ lib/               # bash helpers: env, date (cross-platform), alpaca, pool, cal
 persistence/
   pool.json        # curated stocks + last buy/sell + per-stock strategy overrides
   config/          # user prefs, strategy defaults, activation state
-  snapshots/       # 5min (7-day TTL) | daily | weekly
+  snapshots/       # tick (per-tick, 7-day TTL) | daily | weekly
   reports/         # daily HTML reports
 .env               # GITIGNORED — Alpaca creds
 CLAUDE.md          # rules loaded by Claude Code

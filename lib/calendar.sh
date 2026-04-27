@@ -20,15 +20,24 @@ market_close_iso() {
   alpaca_clock | jq -r '.next_close'
 }
 
-# is_last_tick_of_trading_day — true if (now + 5 min) >= today's market_close.
-# Used by state_persistence to decide whether to also write a daily snapshot.
+# is_last_tick_of_trading_day — true if no further tick will fire today before
+# market close. Used by state_persistence to decide whether to also write a
+# daily snapshot.
+#
+# Detection window = one tick interval. Anything within that window of close
+# is by definition the last scheduled tick, since the next one would land
+# after close (when master_trading would short-circuit on is_market_open).
+# Cadence is read from persistence/config/activation.json so this stays
+# correct as the schedule changes; falls back to 5 if the file is missing.
 is_last_tick_of_trading_day() {
-  local close_iso close_epoch now_epoch
+  local close_iso close_epoch now_epoch cadence_min window_seconds
   close_iso=$(alpaca_clock | jq -r '.next_close')
   close_epoch=$(date_iso_to_epoch "$close_iso") || return 1
   now_epoch=$(date_now_epoch)
-  # Within 5 minutes (300s) of close → treat as last tick.
-  [ $(( close_epoch - now_epoch )) -le 300 ]
+  cadence_min=$(jq -r '.tick_cadence_minutes // 5' \
+    "$REPO_ROOT/persistence/config/activation.json" 2>/dev/null || echo 5)
+  window_seconds=$(( cadence_min * 60 ))
+  [ $(( close_epoch - now_epoch )) -le "$window_seconds" ]
 }
 
 # is_last_trading_day_of_week — true if today is the last trading day of the

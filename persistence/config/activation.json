@@ -1,6 +1,7 @@
 {
   "configured": true,
   "activated_at": "2026-04-27T08:24:38Z",
+  "tick_cadence_minutes": 15,
   "schedule_ids": {
     "master_trading": "claudetrading-master-tick",
     "reporting": "claudetrading-daily-report"

@@ -1,12 +1,12 @@
 ---
 name: master_trading
-description: This skill should be used when fired by the recurring schedule (every 5 min during PT trading hours), or when the user manually runs `/master_trading` for a one-shot tick. Orchestrates one trading tick: checks market open, runs safe_trading filter, invokes each enabled strategy against the filtered pool, then calls state_persistence to snapshot the result.
+description: This skill should be used when fired by the recurring schedule (on the configured tick cadence during PT trading hours), or when the user manually runs `/master_trading` for a one-shot tick. Orchestrates one trading tick: checks market open, runs safe_trading filter, invokes each enabled strategy against the filtered pool, then calls state_persistence to snapshot the result.
 version: 0.1.0
 ---
 
 # master_trading
 
-The heartbeat of ClaudeTrading. One invocation = one 5-minute tick.
+The heartbeat of ClaudeTrading. One invocation = one trading tick. Cadence is set by the cron expression on the `claudetrading-master-tick` scheduled task and mirrored in `persistence/config/activation.json` as `tick_cadence_minutes` (so libraries that need it — e.g. `is_last_tick_of_trading_day` — can stay correct when the schedule changes).
 
 ## Preconditions
 

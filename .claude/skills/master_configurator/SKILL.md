@@ -37,36 +37,40 @@ Activates the ClaudeTrading system from cold. This is the single entry point a u
    - Invoke skill `user_preferences_intake` — gathers tickers, risk, trade caps. Writes `persistence/config/user_preferences.json` and seeds `persistence/pool.json`.
    - Invoke skill `user_custom_strategy_intake` — optional, may scaffold new `strategy_<name>/` skills.
    - Invoke skill `prebuilt_strategy_configurator` — enables/disables/tunes trailing_stop, ladder_buys, wheel. Writes `persistence/config/strategy_defaults.json`.
-4. **Activate schedules.** Use `mcp__scheduled-tasks__create_scheduled_task` to register two cron triggers, both timezone `America/Los_Angeles`:
-   - `*/5 6-12 * * 1-5` → runs `/master_trading`. Skips on holidays via `is_market_open` in the skill body.
+4. **Pick the tick cadence.** Ask the user (AskUserQuestion) how often master_trading should fire during market hours. Sensible options: 5, 10, 15, 30 min. Store the chosen value as `$TICK_CADENCE_MIN` for use in steps 5 and 6.
+
+5. **Activate schedules.** Use `mcp__scheduled-tasks__create_scheduled_task` to register two cron triggers, both timezone `America/Los_Angeles`:
+   - `*/$TICK_CADENCE_MIN 6-12 * * 1-5` → runs `/master_trading`. Skips on holidays via `is_market_open` in the skill body.
    - `0 7 * * 1-5` → runs `/reporting`.
-   For each task, pass these env vars so the remote agent can authenticate:
+   For each task, pass these env vars so the remote agent can authenticate (if the chosen MCP supports env injection — `mcp__scheduled-tasks` currently does not, so the prompt itself sources `.env` from `$REPO_ROOT/lib/env.sh`):
    - `ALPACA_KEY`, `ALPACA_SECRET`, `ALPACA_BASE`, `ALPACA_DATA_BASE`
    (Reattach the values from the local `.env` at activation time. Verify the tool's parameter shape with ToolSearch before calling.)
-5. **Persist activation.** Write `persistence/config/activation.json`:
+6. **Persist activation.** Write `persistence/config/activation.json`. The `tick_cadence_minutes` field is what `lib/calendar.sh::is_last_tick_of_trading_day` reads — keep it in sync with the cron expression in step 5:
    ```json
    {
      "configured": true,
      "activated_at": "<ISO-8601 now>",
+     "tick_cadence_minutes": <$TICK_CADENCE_MIN>,
      "schedule_ids": {
        "master_trading": "<task id from MCP>",
        "reporting":      "<task id from MCP>"
      }
    }
    ```
-6. **Commit + push** the new config files (NOT `.env`):
+7. **Commit + push** the new config files (NOT `.env`):
    ```bash
    git add persistence/config/ persistence/pool.json
    git commit -m "config: master_configurator run on $(date -u +%FT%TZ)"
    git push
    ```
-7. **Print a confirmation summary** to the user: number of stocks in pool, enabled strategies, both schedule IDs, next expected trigger time.
+8. **Print a confirmation summary** to the user: number of stocks in pool, enabled strategies, chosen cadence, both schedule IDs, next expected trigger time.
 
 ## Reconfigure mode
 
 If `.configured == true` and the user chose RECONFIGURE:
 - Skip step 1's exit branch.
-- In step 4, first `mcp__scheduled-tasks__delete_scheduled_task` for any existing task IDs in `activation.json` before re-creating, to avoid duplicate fires.
+- In step 5, first `mcp__scheduled-tasks__delete_scheduled_task` for any existing task IDs in `activation.json` before re-creating, to avoid duplicate fires.
+- For pure cadence changes, prefer `mcp__scheduled-tasks__update_scheduled_task` with a new `cronExpression` and update `tick_cadence_minutes` in activation.json — no need to delete and recreate.
 
 ## Refusal cases
 
@@ -75,4 +79,4 @@ If `.configured == true` and the user chose RECONFIGURE:
 
 ## Why two separate scheduled tasks
 
-`master_trading` fires every 5 min during market hours; `reporting` fires once daily before market open. Different cadences = different cron entries.
+`master_trading` fires on the configured tick cadence during market hours; `reporting` fires once daily before market open. Different cadences = different cron entries.

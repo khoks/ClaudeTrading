@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # state_persistence/scripts/snapshot_daily.sh
 #
-# Aggregates today's 5-min snapshots into a single daily file.
+# Aggregates today's tick snapshots into a single daily file.
 
 set -euo pipefail
 
@@ -17,14 +17,14 @@ source "$REPO_ROOT/lib/alpaca.sh"
 today=$(date_today_utc)
 out="$REPO_ROOT/persistence/snapshots/daily/${today}.json"
 
-snaps_glob="$REPO_ROOT/persistence/snapshots/5min/${today}T*.json"
-# Collect today's 5-min files; tolerate empty glob.
+snaps_glob="$REPO_ROOT/persistence/snapshots/tick/${today}T*.json"
+# Collect today's tick files; tolerate empty glob.
 shopt -s nullglob
 files=( $snaps_glob )
 shopt -u nullglob
 
 if [ ${#files[@]} -eq 0 ]; then
-  echo "no 5-min snapshots for $today; aborting daily" >&2
+  echo "no tick snapshots for $today; aborting daily" >&2
   exit 0
 fi
 
@@ -35,7 +35,7 @@ opening_equity=$(jq -r '.account.equity' "${files[0]}")
 closing_equity=$(jq -r '.account.equity' "${files[$last_idx]}")
 day_pl=$(jq -nc --argjson c "$closing_equity" --argjson o "$opening_equity" '$c - $o')
 
-# Aggregate every action across all 5-min snapshots into one array.
+# Aggregate every action across all tick snapshots into one array.
 all_actions=$(jq -s '[ .[].actions[]? ]' "${files[@]}")
 
 # Final positions snapshot.

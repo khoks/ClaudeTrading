@@ -679,5 +679,5 @@
       "DLR"
     ]
   },
-  "equity_delta_5min": null
+  "equity_delta_vs_prev_tick": null
 }
