@@ -26,8 +26,7 @@ account=$(alpaca_account)
 positions=$(alpaca_positions)
 
 # Find prior 5-min snapshot for delta calc.
-prev=$(ls -1 "$REPO_ROOT/persistence/snapshots/5min/"*.json 2>/dev/null \
-       | grep -v "$out" | sort | tail -1)
+prev=$(ls -1 "$REPO_ROOT/persistence/snapshots/5min/"*.json 2>/dev/null | { grep -v "$out" || true; } | sort | tail -1 || true)
 prev_equity="null"
 if [ -n "$prev" ]; then
   prev_equity=$(jq -r '.account.equity // "null"' "$prev")
