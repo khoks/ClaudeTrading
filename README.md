@@ -55,6 +55,13 @@ claude
 - `prebuilt_strategy_configurator` (enable/tune trailing_stop, ladder_buys, wheel)
 - Registers two cron tasks via `mcp__scheduled-tasks__create_scheduled_task`.
 
+## Documentation
+
+- [`docs/FUNCTIONALITY.md`](docs/FUNCTIONALITY.md) — what the system does day-to-day: trading-day timeline, the H1B safety floor, master_trading orchestration, the four strategy cards, persistence, reporting, common operations.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — how it's built and why: layer responsibilities, tick data flow, skill catalog, state schemas, library API reference, cross-cutting concerns, design decisions.
+- [`CLAUDE.md`](CLAUDE.md) — the hard rules (paper-only, never commit `.env`, etc.).
+- `.claude/skills/<name>/SKILL.md` — per-skill specs (Claude reads these as code-by-prompt at runtime).
+
 ## Repo layout
 
 ```
