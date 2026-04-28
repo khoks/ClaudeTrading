@@ -95,15 +95,28 @@ If you don't already have an Alpaca paper account, you'll need one before step 2
 
 ### Viewing your portfolio: the dashboard
 
-For a snapshot of everything — account, positions, recent activity, strategy state, configuration, pool, schedule — run:
+A live, in-browser status page with five tabs (Portfolio · Activity · Configuration · Pool · Market intel). Run:
 
 ```
 > /dashboard
 ```
 
-This generates a self-contained HTML file at `persistence/dashboard.html`. Open it by **double-clicking from your file manager** (works on macOS, Linux, and Windows) — it renders offline with no external dependencies. All data is baked in at generation time; re-run `/dashboard` to refresh.
+This opens `.claude/skills/dashboard/dashboard.html` in your default browser. The page **fetches live on every open and on every refresh**:
 
-The dashboard is **gitignored per-operator** — your portfolio and trading data stay on your machine.
+- **Alpaca paper API** for account / positions / news (CORS-supported)
+- **capitoltrades.com BFF** for Congressional trades on your pool tickers (best-effort; may fail with CORS — empty-state explains)
+- **File System Access API** for local configs / snapshots / pool
+
+You can keep the tab open and just hit Refresh to re-fetch.
+
+First-time setup is two one-time grants:
+
+1. Paste your Alpaca paper credentials (stored in `localStorage`, sent only to Alpaca's API)
+2. Pick the repo's project root via FSA (handle stored in IndexedDB)
+
+The Configuration tab lets you **edit strategy tunables, preferences, and schedule cadence** directly in the browser — saving writes back through the same FSA handle to `persistence/config/*.json`. No PR, no skill round-trip; the files are gitignored per-operator.
+
+**Browser support:** Chrome / Edge / Opera (Chromium) for full read+write. Firefox / Safari can read but config edits fall back to a "Download as JSON" button.
 
 ## Contributing
 
