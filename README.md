@@ -95,24 +95,21 @@ If you don't already have an Alpaca paper account, you'll need one before step 2
 
 ### Viewing your portfolio: the dashboard
 
-A live, in-browser status page with five tabs (Portfolio · Activity · Configuration · Pool · Market intel). Run:
+A in-browser status page with five tabs (Portfolio · Activity · Configuration · Pool · Market intel). Run:
 
 ```
 > /dashboard
 ```
 
-This opens `.claude/skills/dashboard/dashboard.html` in your default browser. The page **fetches live on every open and on every refresh**:
+This opens `.claude/skills/dashboard/dashboard.html` in your default browser. The page builds itself from your local files on every load:
 
-- **Alpaca paper API** for account / positions / news (CORS-supported)
-- **capitoltrades.com BFF** for Congressional trades on your pool tickers (best-effort; may fail with CORS — empty-state explains)
-- **File System Access API** for local configs / snapshots / pool
+- **Account, positions, P/L, equity sparkline, activity, pool** — read from the most recent tick snapshot + `persistence/config/*` + `persistence/pool.json` via the **File System Access API**. No credentials needed.
+- **Congressional trades** — fetched directly from `bff.capitoltrades.com` (no auth, public endpoint). Best-effort; may CORS-fail from `file://` origin — the page renders a clear error in that case.
+- **News** — *opt-in*. A 🔑 Creds button in the header lets you paste your Alpaca paper key/secret to enable Alpaca news fetching. Without creds, the news panel shows "News is disabled". Creds live in `localStorage` only and are sent only to `data.alpaca.markets`.
 
-You can keep the tab open and just hit Refresh to re-fetch.
+You can keep the tab open and hit Refresh any time to re-read the latest snapshot + re-fetch capitol/news.
 
-First-time setup is two one-time grants:
-
-1. Paste your Alpaca paper credentials (stored in `localStorage`, sent only to Alpaca's API)
-2. Pick the repo's project root via FSA (handle stored in IndexedDB)
+**First-time setup is one click**: pick the repo's project root via the FSA picker (handle stored in IndexedDB). That's it — no creds, no Alpaca onboarding inside the browser. Account/positions are tick-cadence-fresh, which for a 15-minute cadence is fine for a status page that's checked, not watched. Want real-time? Opt into creds — but the default avoids putting any secret in the browser.
 
 The Configuration tab lets you **edit strategy tunables, preferences, and schedule cadence** directly in the browser — saving writes back through the same FSA handle to `persistence/config/*.json`. No PR, no skill round-trip; the files are gitignored per-operator.
 
