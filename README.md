@@ -101,17 +101,18 @@ A live, in-browser status page with five tabs (Portfolio · Activity · Configur
 > /dashboard
 ```
 
-This opens `.claude/skills/dashboard/dashboard.html` in your default browser. The page **builds itself from local files** on every open — no API keys in the browser, no outbound HTTP, no servers.
+This opens `.claude/skills/dashboard/dashboard.html` in your default browser. The page **fetches live on every open and on every refresh**:
 
-First-time setup is one click: the page asks you to pick the repo's project root via the File System Access API (handle stored in IndexedDB; reused on subsequent opens). All five tabs then render from your local `persistence/` directory.
+- **Alpaca paper API** for account / positions / news (CORS-supported)
+- **capitoltrades.com BFF** for Congressional trades on your pool tickers (best-effort; may fail with CORS — empty-state explains)
+- **File System Access API** for local configs / snapshots / pool
 
-**To populate the news + Congressional-trades section** (tab 5), run the cache fetcher when you want fresh data:
+You can keep the tab open and just hit Refresh to re-fetch.
 
-```bash
-bash .claude/skills/dashboard/scripts/fetch_market_intel.sh
-```
+First-time setup is two one-time grants:
 
-This uses your `.env` Alpaca credentials to pull news for your pool tickers, attempts a best-effort fetch from capitoltrades.com (the public site firewalls non-browser API access — see SKILL.md for the known limitation), and writes the cache to `persistence/market_intel.json`. Wire it into a daily scheduled task if you want it always-fresh.
+1. Paste your Alpaca paper credentials (stored in `localStorage`, sent only to Alpaca's API)
+2. Pick the repo's project root via FSA (handle stored in IndexedDB)
 
 The Configuration tab lets you **edit strategy tunables, preferences, and schedule cadence** directly in the browser — saving writes back through the same FSA handle to `persistence/config/*.json`. No PR, no skill round-trip; the files are gitignored per-operator.
 

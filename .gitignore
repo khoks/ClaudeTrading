@@ -37,7 +37,6 @@ persistence/snapshots/tick/*.json
 persistence/snapshots/daily/*.json
 persistence/snapshots/weekly/*.json
 persistence/reports/*.html
-persistence/market_intel.json
 
 # What IS committed (intentional, for reference):
 #   persistence/config/strategy_defaults.json — repo baseline tunables
