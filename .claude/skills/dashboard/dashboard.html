@@ -1,0 +1,1050 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ClaudeTrading Dashboard</title>
+<style>
+  :root {
+    --bg: #0f172a; --card: #1e293b; --card2: #0f172a; --border: #334155;
+    --text: #f1f5f9; --muted: #94a3b8; --dim: #64748b;
+    --accent: #3b82f6; --green: #22c55e; --red: #ef4444; --purple: #a855f7; --yellow: #eab308;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px; line-height: 1.5;
+  }
+  header {
+    padding: 18px 24px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  }
+  header h1 { margin: 0; font-size: 20px; }
+  header .meta { color: var(--muted); font-size: 12px; }
+  header button {
+    background: transparent; border: 1px solid var(--border); color: var(--text);
+    padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;
+  }
+  header button:hover { background: var(--card); }
+
+  nav.tabs {
+    display: flex; gap: 4px; padding: 0 24px; background: var(--bg);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
+  }
+  nav.tabs button {
+    background: transparent; border: 0; color: var(--muted);
+    padding: 12px 18px; cursor: pointer; font-size: 13px; font-weight: 500;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  nav.tabs button:hover { color: var(--text); }
+  nav.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  main { padding: 20px 24px 40px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px;
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px;
+  }
+  .card.full { grid-column: 1 / -1; }
+  .card h2 {
+    margin: 0 0 14px; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted);
+  }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .stat .label { color: var(--dim); font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; }
+  .stat .value { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--muted); font-weight: 600; padding: 8px 6px;
+       text-transform: uppercase; font-size: 10px; letter-spacing: 0.6px;
+       border-bottom: 1px solid var(--border); }
+  td { padding: 8px 6px; border-bottom: 1px solid var(--card2); color: #cbd5e1; }
+  tr:last-child td { border-bottom: 0; }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; }
+  td.sym { font-weight: 600; color: var(--text); }
+  .pos { color: var(--green); }
+  .neg { color: var(--red); }
+  .muted { color: var(--dim); }
+
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 10px;
+          font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .pill.green { background: #064e3b; color: #4ade80; }
+  .pill.red { background: #7f1d1d; color: #fca5a5; }
+  .pill.gray { background: var(--border); color: var(--muted); }
+  .pill.blue { background: #1e3a8a; color: #93c5fd; }
+  .pill.yellow { background: #713f12; color: #fde047; }
+
+  .sparkline { width: 100%; height: 80px; }
+  .empty { color: var(--dim); font-style: italic; padding: 14px 6px; font-size: 13px; }
+
+  /* Filters */
+  .filters { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .filters label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
+  .filters select, .filters input {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 6px 10px; border-radius: 6px; font-size: 13px; min-width: 140px;
+  }
+
+  /* Forms (config tab) */
+  .form-row { display: grid; grid-template-columns: 1fr 200px; gap: 12px; align-items: center;
+              padding: 8px 0; border-bottom: 1px solid var(--card2); font-size: 13px; }
+  .form-row:last-child { border-bottom: 0; }
+  .form-row .k { color: var(--muted); }
+  .form-row input[type=number],
+  .form-row input[type=text],
+  .form-row select {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 6px 10px; border-radius: 6px; font-size: 13px; width: 100%;
+  }
+  .form-row input[type=checkbox] { width: auto; transform: scale(1.2); }
+  .form-actions { margin-top: 14px; display: flex; gap: 10px; align-items: center; }
+  .btn-primary {
+    background: var(--accent); color: white; border: 0; padding: 8px 16px;
+    border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-secondary {
+    background: transparent; color: var(--text); border: 1px solid var(--border);
+    padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer;
+  }
+  .btn-secondary:hover { background: var(--card2); }
+
+  .warning {
+    background: #422006; color: #fbbf24; border-left: 3px solid var(--yellow);
+    padding: 10px 14px; border-radius: 6px; margin: 10px 0; font-size: 12px;
+  }
+  .info {
+    background: #172554; color: #93c5fd; border-left: 3px solid var(--accent);
+    padding: 10px 14px; border-radius: 6px; margin: 10px 0; font-size: 12px;
+  }
+
+  /* Setup overlay */
+  #setup {
+    position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95);
+    display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px;
+  }
+  #setup .box { max-width: 520px; width: 100%; background: var(--card);
+                border: 1px solid var(--border); border-radius: 12px; padding: 28px; }
+  #setup h2 { margin: 0 0 8px; font-size: 18px; color: var(--text); text-transform: none;
+              letter-spacing: 0; font-weight: 600; }
+  #setup p { color: var(--muted); margin: 8px 0; font-size: 13px; }
+  #setup ol { color: var(--muted); font-size: 13px; padding-left: 20px; }
+  #setup .step { margin: 18px 0; padding: 14px; background: var(--card2);
+                 border-radius: 8px; border: 1px solid var(--border); }
+  #setup .step.done { opacity: 0.6; }
+  #setup .step h3 { margin: 0 0 8px; font-size: 14px; color: var(--text); }
+  #setup input[type=text], #setup input[type=password] {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 12px; border-radius: 6px; font-size: 13px; width: 100%;
+    font-family: ui-monospace, Consolas, monospace;
+  }
+  #setup .row { display: flex; gap: 8px; margin: 8px 0; }
+  #setup .row > * { flex: 1; }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 24px; right: 24px; background: var(--green);
+    color: white; padding: 10px 18px; border-radius: 8px; font-weight: 600;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4); transform: translateY(80px);
+    transition: transform 0.3s; z-index: 200; font-size: 13px;
+  }
+  #toast.show { transform: translateY(0); }
+  #toast.error { background: var(--red); }
+
+  /* Strategy cards */
+  .strategy-block {
+    border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 12px;
+  }
+  .strategy-block .head {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+  }
+  .strategy-block .name { font-weight: 600; font-size: 14px; }
+  .strategy-block .desc { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+
+  /* News items */
+  .news-item {
+    border-bottom: 1px solid var(--card2); padding: 12px 0;
+  }
+  .news-item:last-child { border-bottom: 0; }
+  .news-item h3 { margin: 0 0 4px; font-size: 14px; color: var(--text); font-weight: 500; }
+  .news-item h3 a { color: var(--text); text-decoration: none; }
+  .news-item h3 a:hover { color: var(--accent); }
+  .news-item .meta { color: var(--dim); font-size: 11px; margin-bottom: 6px; }
+  .news-item .summary { color: var(--muted); font-size: 12px; }
+  .news-item .symbols { display: inline-flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+  .news-item .symbols .sym { background: var(--card2); padding: 2px 6px; border-radius: 4px;
+                              font-size: 10px; font-weight: 600; color: #93c5fd; }
+
+  footer {
+    padding: 18px 24px; border-top: 1px solid var(--border);
+    color: var(--dim); font-size: 11px; text-align: center;
+  }
+  footer a { color: var(--muted); }
+
+  code { background: var(--card2); padding: 2px 5px; border-radius: 3px;
+         font-size: 12px; color: #cbd5e1; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>ClaudeTrading Dashboard</h1>
+    <div class="meta" id="meta-line">Loading…</div>
+  </div>
+  <div>
+    <button id="reset-creds" title="Re-enter Alpaca credentials">🔑 Creds</button>
+    <button id="reset-fsa" title="Re-pick project root directory">📁 Repo</button>
+    <button id="refresh">↻ Refresh</button>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs" style="display:none">
+  <button data-tab="portfolio" class="active">Portfolio</button>
+  <button data-tab="activity">Activity</button>
+  <button data-tab="config">Configuration</button>
+  <button data-tab="pool">Pool</button>
+  <button data-tab="market">Market intel</button>
+</nav>
+
+<main id="main" style="display:none">
+
+  <section id="tab-portfolio" class="panel active"></section>
+  <section id="tab-activity" class="panel"></section>
+  <section id="tab-config" class="panel"></section>
+  <section id="tab-pool" class="panel"></section>
+  <section id="tab-market" class="panel"></section>
+
+</main>
+
+<footer>
+  ClaudeTrading dashboard · paper trading only · all data is local + your Alpaca account ·
+  refresh re-fetches everything · re-run <code>/dashboard</code> to re-open
+</footer>
+
+<div id="setup">
+  <div class="box">
+    <h2>First-time setup</h2>
+    <p>The dashboard fetches data live: Alpaca for your account, and your local <code>persistence/</code> directory for snapshots and configs. Two one-time grants are needed.</p>
+
+    <div class="step" id="step-creds">
+      <h3>1. Alpaca paper credentials</h3>
+      <p>Stored in your browser's <code>localStorage</code> only. Never sent anywhere except Alpaca's own API.</p>
+      <div class="row">
+        <input id="in-key" type="text" placeholder="ALPACA_KEY (PK…)" autocomplete="off">
+      </div>
+      <div class="row">
+        <input id="in-secret" type="password" placeholder="ALPACA_SECRET (shown once when you regenerate)" autocomplete="off">
+      </div>
+      <div class="row">
+        <button class="btn-primary" id="save-creds">Save credentials</button>
+      </div>
+    </div>
+
+    <div class="step" id="step-fsa">
+      <h3>2. Pick the repo's project root</h3>
+      <p>Grants this page read+write access to your <code>persistence/</code> and <code>persistence/config/</code> directories. Stored as a <code>FileSystemDirectoryHandle</code> in IndexedDB; never uploaded anywhere.</p>
+      <button class="btn-primary" id="pick-dir">Pick directory…</button>
+      <div id="fsa-error" style="color: var(--red); font-size: 12px; margin-top: 8px;"></div>
+    </div>
+
+    <div id="setup-done" style="display:none">
+      <button class="btn-primary" id="finish-setup">Continue to dashboard →</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+// ============================================================
+// State
+// ============================================================
+const STATE = {
+  creds: null,             // { key, secret }
+  dirHandle: null,         // FileSystemDirectoryHandle for project root
+  data: {                  // populated by loadAll()
+    account: null,
+    positions: [],
+    pool: { stocks: [] },
+    prefs: {},
+    activation: {},
+    defaults: {},
+    tickSnaps: [],         // array of {tick_at, account, positions, actions, sets, ...}
+    dailySnaps: [],
+    news: [],
+    errors: [],
+  },
+  filters: {
+    activityTimeframe: 'today',
+    activitySymbol: 'all',
+  },
+  fsaSupported: 'showDirectoryPicker' in window,
+};
+
+// ============================================================
+// Tiny IndexedDB wrapper for storing the FSA handle
+// ============================================================
+const IDB_NAME = 'ct-dashboard';
+const IDB_STORE = 'handles';
+function idbOpen() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbGet(key) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readonly');
+    const r = tx.objectStore(IDB_STORE).get(key);
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+}
+async function idbSet(key, value) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// ============================================================
+// Credentials
+// ============================================================
+const CREDS_KEY = 'claudetrading.creds';
+function loadCreds() {
+  try { return JSON.parse(localStorage.getItem(CREDS_KEY) || 'null'); } catch { return null; }
+}
+function saveCreds(creds) {
+  localStorage.setItem(CREDS_KEY, JSON.stringify(creds));
+}
+function clearCreds() {
+  localStorage.removeItem(CREDS_KEY);
+}
+
+// ============================================================
+// FSA helpers
+// ============================================================
+async function getStoredHandle() {
+  try { return await idbGet('repoRoot'); } catch { return null; }
+}
+async function pickRepoRoot() {
+  const h = await window.showDirectoryPicker({ mode: 'readwrite' });
+  await idbSet('repoRoot', h);
+  return h;
+}
+async function ensurePermission(handle, mode = 'readwrite') {
+  if (!handle) return false;
+  const opts = { mode };
+  if ((await handle.queryPermission(opts)) === 'granted') return true;
+  if ((await handle.requestPermission(opts)) === 'granted') return true;
+  return false;
+}
+// Resolve nested path inside the dirHandle. e.g. "persistence/pool.json"
+async function getFileHandleByPath(path, { create = false } = {}) {
+  const parts = path.split('/').filter(Boolean);
+  let h = STATE.dirHandle;
+  for (let i = 0; i < parts.length - 1; i++) {
+    h = await h.getDirectoryHandle(parts[i], { create });
+  }
+  return await h.getFileHandle(parts[parts.length - 1], { create });
+}
+async function readJSON(path, fallback = null) {
+  try {
+    const fh = await getFileHandleByPath(path);
+    const file = await fh.getFile();
+    const text = await file.text();
+    return text ? JSON.parse(text) : fallback;
+  } catch (e) {
+    if (e.name === 'NotFoundError') return fallback;
+    throw e;
+  }
+}
+async function writeJSON(path, obj) {
+  const fh = await getFileHandleByPath(path, { create: true });
+  const w = await fh.createWritable();
+  await w.write(JSON.stringify(obj, null, 2) + '\n');
+  await w.close();
+}
+async function listJSONFiles(dirPath) {
+  const parts = dirPath.split('/').filter(Boolean);
+  let h = STATE.dirHandle;
+  try {
+    for (const p of parts) h = await h.getDirectoryHandle(p);
+  } catch { return []; }
+  const out = [];
+  for await (const [name, entry] of h.entries()) {
+    if (entry.kind === 'file' && name.endsWith('.json')) out.push({ name, handle: entry });
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name));
+  return out;
+}
+async function readSnapshots(dirPath, limit = null) {
+  const files = await listJSONFiles(dirPath);
+  const slice = limit && files.length > limit ? files.slice(files.length - limit) : files;
+  const snaps = [];
+  for (const f of slice) {
+    try {
+      const file = await f.handle.getFile();
+      const text = await file.text();
+      if (text) snaps.push(JSON.parse(text));
+    } catch (e) { /* skip */ }
+  }
+  return snaps;
+}
+
+// ============================================================
+// Alpaca API
+// ============================================================
+async function alpacaFetch(path, { dataApi = false } = {}) {
+  const base = dataApi ? 'https://data.alpaca.markets' : 'https://paper-api.alpaca.markets/v2';
+  const res = await fetch(base + path, {
+    headers: {
+      'APCA-API-KEY-ID': STATE.creds.key,
+      'APCA-API-SECRET-KEY': STATE.creds.secret,
+      'accept': 'application/json',
+    },
+  });
+  if (!res.ok) throw new Error(`Alpaca ${path} → HTTP ${res.status}: ${(await res.text()).slice(0,200)}`);
+  return await res.json();
+}
+
+// ============================================================
+// Main data load
+// ============================================================
+async function loadAll() {
+  STATE.data.errors = [];
+  // Local files via FSA — always read first; some don't exist on a fresh clone.
+  try { STATE.data.pool       = await readJSON('persistence/pool.json',                          { stocks: [] }); } catch (e) { STATE.data.errors.push('pool.json: ' + e.message); }
+  try { STATE.data.prefs      = await readJSON('persistence/config/user_preferences.json',       {}); } catch (e) { STATE.data.errors.push('user_preferences: ' + e.message); }
+  try { STATE.data.activation = await readJSON('persistence/config/activation.json',             { configured: false }); } catch (e) { STATE.data.errors.push('activation: ' + e.message); }
+  try { STATE.data.defaults   = await readJSON('persistence/config/strategy_defaults.json',      {}); } catch (e) { STATE.data.errors.push('strategy_defaults: ' + e.message); }
+  try { STATE.data.tickSnaps  = await readSnapshots('persistence/snapshots/tick',   200); } catch (e) { STATE.data.errors.push('tick snapshots: ' + e.message); }
+  try { STATE.data.dailySnaps = await readSnapshots('persistence/snapshots/daily',  60);  } catch (e) { STATE.data.errors.push('daily snapshots: ' + e.message); }
+
+  // Alpaca live data
+  try {
+    STATE.data.account   = await alpacaFetch('/account');
+    STATE.data.positions = await alpacaFetch('/positions');
+  } catch (e) {
+    STATE.data.errors.push('Alpaca live fetch: ' + e.message + ' (falling back to last tick snapshot)');
+    const last = STATE.data.tickSnaps[STATE.data.tickSnaps.length - 1];
+    if (last) {
+      STATE.data.account = last.account;
+      STATE.data.positions = last.positions;
+    } else {
+      STATE.data.account = {};
+      STATE.data.positions = [];
+    }
+  }
+
+  // News for pool tickers
+  try {
+    const symbols = (STATE.data.pool.stocks || []).map(s => s.symbol).join(',');
+    if (symbols) {
+      const newsResp = await alpacaFetch(`/v1beta1/news?symbols=${encodeURIComponent(symbols)}&limit=30&sort=desc`, { dataApi: true });
+      STATE.data.news = newsResp.news || [];
+    } else {
+      STATE.data.news = [];
+    }
+  } catch (e) {
+    STATE.data.errors.push('news fetch: ' + e.message);
+    STATE.data.news = [];
+  }
+}
+
+// ============================================================
+// Render helpers
+// ============================================================
+function fmt$(n)   { return '$' + Number(n || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+function fmt$signed(n) { const v = Number(n || 0); return (v >= 0 ? '+' : '') + fmt$(v).replace('$', '$'); }
+function fmt$round(n) { return '$' + Math.round(Number(n || 0)); }
+function fmtNum(n, d = 4) { return Number(n || 0).toFixed(d).replace(/\.?0+$/, ''); }
+function fmtPct(n)  { const v = Number(n || 0); return (v >= 0 ? '+' : '') + v.toFixed(2) + '%'; }
+function signClass(n) { return Number(n) >= 0 ? 'pos' : 'neg'; }
+function escapeHTML(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtDate(iso) { if (!iso) return '—'; return new Date(iso).toLocaleString(); }
+
+// ============================================================
+// Tab: Portfolio
+// ============================================================
+function renderPortfolio() {
+  const { account, positions, tickSnaps } = STATE.data;
+  const equity = parseFloat(account?.equity ?? 0);
+  const cash = parseFloat(account?.cash ?? 0);
+  const bp = parseFloat(account?.buying_power ?? 0);
+  const lastEq = parseFloat(account?.last_equity ?? equity);
+  const dayChg = equity - lastEq;
+  const dayChgPct = lastEq ? (dayChg / lastEq) * 100 : 0;
+
+  const recent = tickSnaps.slice(-30);
+  const equityPts = recent.map(s => parseFloat(s.account?.equity ?? 0));
+  const sparkSvg = equityPts.length > 1 ? renderSparkline(equityPts) : '<div class="empty">Need at least 2 tick snapshots to draw a chart.</div>';
+
+  const posTable = positions.length === 0
+    ? '<div class="empty">No open positions.</div>'
+    : `<table>
+       <thead><tr><th>Symbol</th><th class="num">Qty</th><th class="num">Avg cost</th><th class="num">Mark</th><th class="num">Mkt value</th><th class="num">Unrealized P/L</th></tr></thead>
+       <tbody>${
+         positions
+           .slice()
+           .sort((a, b) => parseFloat(b.unrealized_pl) - parseFloat(a.unrealized_pl))
+           .map(p => `<tr>
+             <td class="sym">${escapeHTML(p.symbol)}</td>
+             <td class="num">${fmtNum(p.qty)}</td>
+             <td class="num">${fmt$(p.avg_entry_price)}</td>
+             <td class="num">${fmt$(p.current_price ?? 0)}</td>
+             <td class="num">${fmt$(p.market_value)}</td>
+             <td class="num ${signClass(p.unrealized_pl)}">${fmt$signed(p.unrealized_pl)}</td>
+           </tr>`).join('')
+       }</tbody></table>`;
+
+  document.getElementById('tab-portfolio').innerHTML = `
+    <div class="grid">
+      <section class="card">
+        <h2 style="color: var(--green)">Account</h2>
+        <div class="stat-grid">
+          <div class="stat"><div class="label">Equity</div><div class="value">${fmt$(equity)}</div></div>
+          <div class="stat"><div class="label">Cash</div><div class="value">${fmt$(cash)}</div></div>
+          <div class="stat"><div class="label">Buying Power</div><div class="value">${fmt$(bp)}</div></div>
+          <div class="stat"><div class="label">Day change</div>
+            <div class="value ${signClass(dayChg)}">${fmt$signed(dayChg)} <span style="font-size:13px">(${fmtPct(dayChgPct)})</span></div>
+          </div>
+        </div>
+      </section>
+      <section class="card">
+        <h2 style="color: var(--accent)">Equity (last ${recent.length} ticks)</h2>
+        ${sparkSvg}
+      </section>
+      <section class="card full">
+        <h2 style="color: var(--green)">Open positions (${positions.length})</h2>
+        ${posTable}
+      </section>
+    </div>`;
+}
+
+function renderSparkline(values) {
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const w = 600, h = 70;
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * w;
+    const y = h - ((v - min) / range) * (h - 10);
+    return `${Math.round(x)},${Math.round(y)}`;
+  }).join(' ');
+  const trendUp = values[values.length - 1] >= values[0];
+  const color = trendUp ? '#22c55e' : '#ef4444';
+  return `<svg class="sparkline" viewBox="0 0 ${w} 80" preserveAspectRatio="none">
+    <polyline points="${pts}" stroke="${color}" stroke-width="2" fill="none"/>
+    <polyline points="0,80 ${pts} ${w},80" fill="${color}22" stroke="none"/>
+  </svg>`;
+}
+
+// ============================================================
+// Tab: Activity
+// ============================================================
+function collectAllActions() {
+  const out = [];
+  for (const snap of STATE.data.tickSnaps) {
+    for (const a of (snap.actions || [])) out.push({ ...a, tick_at: snap.tick_at });
+  }
+  for (const d of STATE.data.dailySnaps) {
+    for (const a of (d.actions || [])) {
+      if (!a.tick_at) a.tick_at = d.date + 'T13:00:00Z';
+      out.push(a);
+    }
+  }
+  // Dedupe by (tick_at, strategy, symbol, side, alpaca_order_id)
+  const seen = new Set();
+  const unique = [];
+  for (const a of out) {
+    const key = `${a.tick_at}|${a.strategy}|${a.symbol}|${a.side}|${a.alpaca_order_id || ''}`;
+    if (!seen.has(key)) { seen.add(key); unique.push(a); }
+  }
+  unique.sort((a, b) => (b.tick_at || '').localeCompare(a.tick_at || ''));
+  return unique;
+}
+
+function filterActions(all, timeframe, symbol) {
+  if (all.length === 0) return [];
+  let out = all.slice();
+
+  if (timeframe === 'last-tick') {
+    const latest = out[0]?.tick_at;
+    out = out.filter(a => a.tick_at === latest);
+  } else if (timeframe !== 'all') {
+    const now = Date.now();
+    const cutoffs = { today: 24, week: 24*7, month: 24*30 };
+    const hours = cutoffs[timeframe] || 24;
+    const cutoff = now - hours * 3600 * 1000;
+    if (timeframe === 'today') {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      out = out.filter(a => (a.tick_at || '').slice(0, 10) === todayStr);
+    } else {
+      out = out.filter(a => new Date(a.tick_at || 0).getTime() >= cutoff);
+    }
+  }
+
+  if (symbol !== 'all') out = out.filter(a => a.symbol === symbol);
+  return out;
+}
+
+function renderActivity() {
+  const all = collectAllActions();
+  const sym = STATE.filters.activitySymbol;
+  const tf = STATE.filters.activityTimeframe;
+  const filtered = filterActions(all, tf, sym);
+
+  const symbols = Array.from(new Set([
+    ...(STATE.data.pool.stocks || []).map(s => s.symbol),
+    ...all.map(a => a.symbol).filter(Boolean),
+  ])).sort();
+
+  const tfOpts = [
+    ['last-tick', 'Last tick only'],
+    ['today',     'Today'],
+    ['week',      'Last 7 days'],
+    ['month',     'Last 30 days'],
+    ['all',       'All available'],
+  ];
+
+  const filterBar = `<div class="filters">
+    <label>Timeframe
+      <select id="filter-timeframe">${
+        tfOpts.map(([v, l]) => `<option value="${v}" ${v===tf?'selected':''}>${l}</option>`).join('')
+      }</select>
+    </label>
+    <label>Symbol
+      <select id="filter-symbol">
+        <option value="all" ${sym==='all'?'selected':''}>All symbols</option>
+        ${symbols.map(s => `<option value="${escapeHTML(s)}" ${s===sym?'selected':''}>${escapeHTML(s)}</option>`).join('')}
+      </select>
+    </label>
+    <span style="align-self:flex-end; color: var(--muted); font-size: 12px; padding: 6px 0;">
+      Showing ${filtered.length} of ${all.length} action${all.length === 1 ? '' : 's'}
+    </span>
+  </div>`;
+
+  const table = filtered.length === 0
+    ? '<div class="empty">No actions match the current filters.</div>'
+    : `<table>
+       <thead><tr><th>Time</th><th>Strategy</th><th>Symbol</th><th>Side</th><th class="num">Qty / $</th><th>Status</th><th>Reason</th></tr></thead>
+       <tbody>${filtered.map(a => `<tr>
+         <td class="muted">${escapeHTML(fmtDate(a.tick_at))}</td>
+         <td>${escapeHTML(a.strategy || '?')}</td>
+         <td class="sym">${escapeHTML(a.symbol || '?')}</td>
+         <td>${escapeHTML(a.side || '—')}</td>
+         <td class="num">${a.qty != null ? fmtNum(a.qty) : (a.notional != null ? '$' + a.notional : '—')}</td>
+         <td><span class="pill ${pillForStatus(a.status)}">${escapeHTML(a.status || '?')}</span></td>
+         <td class="muted">${escapeHTML(a.reason || '—')}</td>
+       </tr>`).join('')}</tbody></table>`;
+
+  document.getElementById('tab-activity').innerHTML = `
+    <div class="card full">
+      <h2 style="color: var(--purple)">Activity</h2>
+      ${filterBar}
+      ${table}
+    </div>`;
+
+  document.getElementById('filter-timeframe').addEventListener('change', e => {
+    STATE.filters.activityTimeframe = e.target.value; renderActivity();
+  });
+  document.getElementById('filter-symbol').addEventListener('change', e => {
+    STATE.filters.activitySymbol = e.target.value; renderActivity();
+  });
+}
+
+function pillForStatus(s) {
+  if (!s) return 'gray';
+  if (['filled', 'submitted', 'accepted', 'pending_new', 'new'].includes(s)) return 'green';
+  if (s === 'error' || s === 'rejected' || s === 'canceled') return 'red';
+  if (s === 'skipped') return 'yellow';
+  return 'gray';
+}
+
+// ============================================================
+// Tab: Configuration
+// ============================================================
+function renderConfig() {
+  const d = STATE.data.defaults || {};
+  const p = STATE.data.prefs || {};
+  const a = STATE.data.activation || {};
+
+  const stratNames = ['profit_take', 'trailing_stop', 'mean_reversion', 'ladder_buys', 'wheel'];
+  const stratCards = stratNames.map(name => {
+    const cfg = d[name] || { enabled: false };
+    const tunables = Object.entries(cfg).filter(([k]) => k !== 'enabled' && k !== 'comment');
+    return `
+      <div class="strategy-block">
+        <div class="head">
+          <div class="name">${name}</div>
+          <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted)">
+            <input type="checkbox" data-strat="${name}" data-key="enabled" ${cfg.enabled ? 'checked' : ''}>
+            Enabled
+          </label>
+        </div>
+        <div class="desc">${stratDescription(name)}</div>
+        ${tunables.length === 0
+          ? '<div class="muted" style="font-size:12px;font-style:italic">No tunable parameters</div>'
+          : tunables.map(([k, v]) => `
+            <div class="form-row">
+              <span class="k">${escapeHTML(k)}</span>
+              ${
+                Array.isArray(v)
+                  ? `<input type="text" data-strat="${name}" data-key="${k}" data-type="array" value="${escapeHTML(JSON.stringify(v))}">`
+                  : (typeof v === 'boolean')
+                    ? `<input type="checkbox" data-strat="${name}" data-key="${k}" ${v ? 'checked' : ''}>`
+                    : `<input type="number" step="any" data-strat="${name}" data-key="${k}" value="${escapeHTML(v)}">`
+              }
+            </div>`).join('')
+        }
+      </div>`;
+  }).join('');
+
+  const prefsCard = `
+    <div class="form-row"><span class="k">Risk tolerance</span>
+      <select id="pref-risk">
+        ${['conservative','moderate','aggressive'].map(r => `<option ${p.risk_tolerance===r?'selected':''}>${r}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-row"><span class="k">Max per-trade ($)</span>
+      <input type="number" id="pref-cap" min="0" value="${escapeHTML(p.max_per_trade_usd ?? 1000)}">
+    </div>
+    <div class="form-row"><span class="k">Fractional shares</span>
+      <input type="checkbox" id="pref-frac" ${p.fractional_shares ? 'checked' : ''}>
+    </div>
+    <div class="form-row"><span class="k muted">Curated tickers</span>
+      <span class="muted" style="font-size:12px">${(p.curated_tickers || []).length} tickers — edit via <code>/user_preferences_intake</code></span>
+    </div>`;
+
+  const schedCard = `
+    <div class="form-row"><span class="k">Tick cadence (minutes)</span>
+      <input type="number" id="sched-cadence" min="1" max="60" value="${escapeHTML(a.tick_cadence_minutes ?? 15)}">
+    </div>
+    <div class="warning">
+      Saving cadence updates <code>activation.json</code> only. The cron registered
+      with <code>mcp__scheduled-tasks</code> does <strong>not</strong> change automatically —
+      run <code>/master_configurator</code> in reconfigure mode (or call
+      <code>mcp__scheduled-tasks__update_scheduled_task</code>) to apply the new cadence
+      to the live schedule.
+    </div>`;
+
+  document.getElementById('tab-config').innerHTML = `
+    <div class="grid">
+      <section class="card full">
+        <h2 style="color: var(--accent)">Strategies</h2>
+        ${stratCards}
+        <div class="form-actions">
+          <button class="btn-primary" id="save-strategies">Save strategy_defaults.json</button>
+          <button class="btn-secondary" id="download-strategies">Download as JSON</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 style="color: var(--purple)">User preferences</h2>
+        ${prefsCard}
+        <div class="form-actions">
+          <button class="btn-primary" id="save-prefs">Save user_preferences.json</button>
+          <button class="btn-secondary" id="download-prefs">Download as JSON</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 style="color: var(--accent)">Schedule</h2>
+        ${schedCard}
+        <div class="form-actions">
+          <button class="btn-primary" id="save-sched">Save activation.json</button>
+          <button class="btn-secondary" id="download-sched">Download as JSON</button>
+        </div>
+      </section>
+    </div>`;
+
+  // Wire up handlers
+  document.getElementById('save-strategies').addEventListener('click', saveStrategies);
+  document.getElementById('save-prefs').addEventListener('click', savePrefs);
+  document.getElementById('save-sched').addEventListener('click', saveSched);
+  document.getElementById('download-strategies').addEventListener('click', () => downloadJSON('strategy_defaults.json', collectStrategies()));
+  document.getElementById('download-prefs').addEventListener('click', () => downloadJSON('user_preferences.json', collectPrefs()));
+  document.getElementById('download-sched').addEventListener('click', () => downloadJSON('activation.json', collectSched()));
+}
+
+function stratDescription(name) {
+  return ({
+    profit_take:    'Eager partial exit on absolute gain (sells, Phase A).',
+    trailing_stop:  'Floor-only watermark; full exit on retracement (sells, Phase A).',
+    mean_reversion: 'Buy the basket-relative laggard (buys, Phase B).',
+    ladder_buys:    'Buy more when a position drops below last buy (buys, Phase B).',
+    wheel:          'Cash-secured puts → covered calls. Requires Alpaca options approval.',
+  })[name] || 'User-defined strategy.';
+}
+
+function collectStrategies() {
+  const out = JSON.parse(JSON.stringify(STATE.data.defaults || {}));
+  document.querySelectorAll('[data-strat]').forEach(el => {
+    const s = el.dataset.strat, k = el.dataset.key, t = el.dataset.type;
+    out[s] = out[s] || {};
+    if (el.type === 'checkbox') out[s][k] = el.checked;
+    else if (t === 'array')     { try { out[s][k] = JSON.parse(el.value); } catch { /* ignore bad JSON */ } }
+    else                        out[s][k] = parseFloat(el.value);
+  });
+  return out;
+}
+function collectPrefs() {
+  const out = JSON.parse(JSON.stringify(STATE.data.prefs || {}));
+  out.risk_tolerance    = document.getElementById('pref-risk').value;
+  out.max_per_trade_usd = parseInt(document.getElementById('pref-cap').value, 10);
+  out.fractional_shares = document.getElementById('pref-frac').checked;
+  out.updated_at        = new Date().toISOString();
+  return out;
+}
+function collectSched() {
+  const out = JSON.parse(JSON.stringify(STATE.data.activation || {}));
+  out.tick_cadence_minutes = parseInt(document.getElementById('sched-cadence').value, 10);
+  return out;
+}
+async function saveStrategies() {
+  const out = collectStrategies();
+  try { await writeJSON('persistence/config/strategy_defaults.json', out); STATE.data.defaults = out; toast('Saved strategy_defaults.json'); }
+  catch (e) { toast('Save failed: ' + e.message, true); }
+}
+async function savePrefs() {
+  const out = collectPrefs();
+  try { await writeJSON('persistence/config/user_preferences.json', out); STATE.data.prefs = out; toast('Saved user_preferences.json'); }
+  catch (e) { toast('Save failed: ' + e.message, true); }
+}
+async function saveSched() {
+  const out = collectSched();
+  try { await writeJSON('persistence/config/activation.json', out); STATE.data.activation = out; toast('Saved activation.json'); }
+  catch (e) { toast('Save failed: ' + e.message, true); }
+}
+function downloadJSON(filename, obj) {
+  const blob = new Blob([JSON.stringify(obj, null, 2) + '\n'], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// ============================================================
+// Tab: Pool
+// ============================================================
+function renderPool() {
+  const stocks = (STATE.data.pool.stocks || []).slice().sort((a, b) => (b.total_profit_usd || 0) - (a.total_profit_usd || 0));
+  const table = stocks.length === 0
+    ? '<div class="empty">Pool is empty. Run <code>/user_preferences_intake</code> to add tickers.</div>'
+    : `<table>
+       <thead><tr><th>Symbol</th><th>Last buy</th><th>Last sell</th><th class="num">Watermark</th><th class="num">Stop</th><th class="num">Total invested</th><th class="num">Realized P/L</th></tr></thead>
+       <tbody>${stocks.map(s => `<tr>
+         <td class="sym">${escapeHTML(s.symbol)}</td>
+         <td class="muted">${s.last_buy?.timestamp ? `${escapeHTML(fmtDate(s.last_buy.timestamp))} @ ${fmt$(s.last_buy.price)}` : '—'}</td>
+         <td class="muted">${s.last_sell?.timestamp ? `${escapeHTML(fmtDate(s.last_sell.timestamp))} @ ${fmt$(s.last_sell.price)}` : '—'}</td>
+         <td class="num">${s.high_watermark ? fmt$(s.high_watermark) : '—'}</td>
+         <td class="num">${s.stop_loss?.price ? fmt$(s.stop_loss.price) : '—'}</td>
+         <td class="num">${fmt$(s.total_invested_usd ?? 0)}</td>
+         <td class="num ${signClass(s.total_profit_usd ?? 0)}">${fmt$signed(s.total_profit_usd ?? 0)}</td>
+       </tr>`).join('')}</tbody></table>`;
+
+  document.getElementById('tab-pool').innerHTML = `
+    <div class="card full">
+      <h2 style="color: var(--green)">Pool (${stocks.length} ticker${stocks.length===1?'':'s'})</h2>
+      <div class="info">To add or remove tickers, run <code>/user_preferences_intake</code> from inside Claude Code.</div>
+      ${table}
+    </div>`;
+}
+
+// ============================================================
+// Tab: Market intel
+// ============================================================
+function renderMarket() {
+  const news = STATE.data.news || [];
+  const newsBlock = news.length === 0
+    ? '<div class="empty">No news available for your pool tickers right now (or news API failed).</div>'
+    : news.map(n => `
+        <div class="news-item">
+          <h3><a href="${escapeHTML(n.url)}" target="_blank" rel="noopener">${escapeHTML(n.headline)}</a></h3>
+          <div class="meta">${escapeHTML(n.source || '?')} · ${escapeHTML(fmtDate(n.created_at))} · by ${escapeHTML(n.author || 'unknown')}</div>
+          ${n.summary ? `<div class="summary">${escapeHTML(n.summary).slice(0, 280)}${n.summary.length > 280 ? '…' : ''}</div>` : ''}
+          ${(n.symbols || []).length ? `<div class="symbols">${n.symbols.map(s => `<span class="sym">${escapeHTML(s)}</span>`).join('')}</div>` : ''}
+        </div>`).join('');
+
+  document.getElementById('tab-market').innerHTML = `
+    <div class="grid">
+      <section class="card full">
+        <h2 style="color: var(--accent)">Pool ticker news (Alpaca, last ${news.length})</h2>
+        ${newsBlock}
+      </section>
+      <section class="card full">
+        <h2 style="color: var(--yellow)">Congressional / insider trades</h2>
+        <div class="info">
+          Source not yet wired. Tell Claude which site to pull from
+          (<code>capitoltrades.com</code> for Congressional disclosures? something else?) and
+          this section will get hooked up in a follow-up PR.
+        </div>
+      </section>
+    </div>`;
+}
+
+// ============================================================
+// Toast
+// ============================================================
+let toastTimer;
+function toast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.toggle('error', isError);
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ============================================================
+// Tab switching
+// ============================================================
+function setupTabs() {
+  document.querySelectorAll('nav.tabs button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `tab-${btn.dataset.tab}`));
+    });
+  });
+}
+
+// ============================================================
+// Setup overlay
+// ============================================================
+function showSetup(stepCreds, stepFsa) {
+  const setup = document.getElementById('setup');
+  setup.style.display = 'flex';
+  document.getElementById('step-creds').classList.toggle('done', !stepCreds);
+  document.getElementById('step-fsa').classList.toggle('done', !stepFsa);
+  document.getElementById('setup-done').style.display = (!stepCreds && !stepFsa) ? 'block' : 'none';
+  if (!STATE.fsaSupported) {
+    document.getElementById('fsa-error').textContent =
+      'Your browser does not support the File System Access API. ' +
+      'Chrome / Edge / Opera work. Firefox / Safari do not — use one of those instead, ' +
+      'or use the configurator skills directly.';
+  }
+}
+function hideSetup() {
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('tabs').style.display = 'flex';
+  document.getElementById('main').style.display = 'block';
+}
+
+// ============================================================
+// Boot
+// ============================================================
+async function boot() {
+  // Load creds + handle from storage
+  STATE.creds = loadCreds();
+  STATE.dirHandle = await getStoredHandle();
+
+  const needsCreds = !STATE.creds;
+  let needsFsa = !STATE.dirHandle;
+  if (STATE.dirHandle) {
+    const ok = await ensurePermission(STATE.dirHandle, 'readwrite');
+    if (!ok) needsFsa = true;
+  }
+
+  if (needsCreds || needsFsa) {
+    showSetup(needsCreds, needsFsa);
+    return;
+  }
+
+  await renderAll();
+}
+
+async function renderAll() {
+  document.getElementById('meta-line').textContent = 'Loading data…';
+  try {
+    await loadAll();
+  } catch (e) {
+    toast('Load failed: ' + e.message, true);
+  }
+  renderPortfolio();
+  renderActivity();
+  renderConfig();
+  renderPool();
+  renderMarket();
+  hideSetup();
+
+  const errCount = STATE.data.errors.length;
+  const lastTickAt = STATE.data.tickSnaps.length ? STATE.data.tickSnaps[STATE.data.tickSnaps.length - 1].tick_at : null;
+  document.getElementById('meta-line').innerHTML =
+    `${STATE.data.account?.account_number ? `Paper account ${escapeHTML(STATE.data.account.account_number)} · ` : ''}` +
+    `${lastTickAt ? `last tick ${escapeHTML(fmtDate(lastTickAt))} · ` : ''}` +
+    `loaded ${new Date().toLocaleTimeString()}` +
+    (errCount > 0 ? ` · <span style="color:var(--yellow)">⚠ ${errCount} fetch error${errCount===1?'':'s'} (open DevTools console for details)</span>` : '');
+  if (errCount > 0) {
+    console.warn('ClaudeTrading dashboard load errors:', STATE.data.errors);
+  }
+}
+
+// ============================================================
+// Event wiring
+// ============================================================
+document.getElementById('save-creds').addEventListener('click', async () => {
+  const key = document.getElementById('in-key').value.trim();
+  const secret = document.getElementById('in-secret').value.trim();
+  if (!key || !secret) { toast('Both key and secret required', true); return; }
+  STATE.creds = { key, secret };
+  saveCreds(STATE.creds);
+  toast('Credentials saved');
+  // Re-evaluate setup state
+  showSetup(false, !STATE.dirHandle);
+});
+
+document.getElementById('pick-dir').addEventListener('click', async () => {
+  if (!STATE.fsaSupported) {
+    document.getElementById('fsa-error').textContent =
+      'Your browser does not support the File System Access API.';
+    return;
+  }
+  try {
+    STATE.dirHandle = await pickRepoRoot();
+    showSetup(!STATE.creds, false);
+    toast('Directory access granted');
+  } catch (e) {
+    document.getElementById('fsa-error').textContent = 'Picker cancelled or failed: ' + e.message;
+  }
+});
+
+document.getElementById('finish-setup').addEventListener('click', renderAll);
+
+document.getElementById('refresh').addEventListener('click', renderAll);
+
+document.getElementById('reset-creds').addEventListener('click', () => {
+  clearCreds(); STATE.creds = null;
+  showSetup(true, !STATE.dirHandle);
+});
+
+document.getElementById('reset-fsa').addEventListener('click', async () => {
+  STATE.dirHandle = null;
+  await idbSet('repoRoot', null);
+  showSetup(!STATE.creds, true);
+});
+
+setupTabs();
+boot();
+
+</script>
+
+</body>
+</html>
