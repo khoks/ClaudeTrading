@@ -236,8 +236,9 @@
     <p>The dashboard reads everything from your local <code>persistence/</code> directory — account, positions, configs, snapshots, pool. One grant is needed.</p>
 
     <div class="step" id="step-fsa">
-      <h3>Pick the repo's project root</h3>
-      <p>Grants the page read+write access to <code>persistence/</code> for configs and snapshots. <code>FileSystemDirectoryHandle</code> stored in IndexedDB; never uploaded. Browsers block <code>file://</code>-to-<code>file://</code> reads as a security feature, so this explicit grant is the sandbox-friendly path.</p>
+      <h3>Pick the ClaudeTrading repo root</h3>
+      <p>Pick the folder that contains <code>persistence/</code>, <code>lib/</code>, and <code>CLAUDE.md</code> — i.e. the top-level <code>ClaudeTrading</code> directory, NOT a subfolder like <code>.claude/skills/dashboard/</code>. We verify the pick before saving it.</p>
+      <p style="font-size: 12px; color: var(--dim);">Grants the page read+write access for configs and snapshots. <code>FileSystemDirectoryHandle</code> stored in IndexedDB; never uploaded. Browsers block <code>file://</code>-to-<code>file://</code> reads as a security feature, so this explicit grant is the sandbox-friendly path.</p>
       <button class="btn-primary" id="pick-dir">Pick directory…</button>
       <div id="fsa-error" style="color: var(--red); font-size: 12px; margin-top: 8px;"></div>
     </div>
@@ -349,8 +350,32 @@ function clearCreds() { localStorage.removeItem(CREDS_KEY); }
 async function getStoredHandle() {
   try { return await idbGet('repoRoot'); } catch { return null; }
 }
+// Probe the picked directory: does it look like the ClaudeTrading repo root?
+// We test by trying to traverse to `persistence/` (the directory we read from)
+// and `persistence/pool.json` (the canonical "this is the repo" marker file).
+// Returns { ok, reason }. NOT throwing — caller decides what to do.
+async function verifyRepoRoot(handle) {
+  if (!handle) return { ok: false, reason: 'no handle' };
+  try {
+    const persistence = await handle.getDirectoryHandle('persistence');
+    // pool.json is created by master_configurator on first run. If it isn't
+    // there, either the user picked a wrong sibling (e.g. some other repo
+    // that happens to have a `persistence/` dir) or they haven't configured
+    // yet. Either way, the dashboard cannot function — give them a clean
+    // error so they aren't staring at $0.00 wondering what went wrong.
+    await persistence.getFileHandle('pool.json');
+    return { ok: true };
+  } catch (e) {
+    if (e.name === 'NotFoundError') {
+      return { ok: false, reason: `Picked directory "${handle.name}" doesn't contain persistence/pool.json. Pick the ClaudeTrading repo root (the folder with persistence/, lib/, CLAUDE.md).` };
+    }
+    return { ok: false, reason: `Could not read directory "${handle.name}": ${e.message}` };
+  }
+}
 async function pickRepoRoot() {
   const h = await window.showDirectoryPicker({ mode: 'readwrite' });
+  const v = await verifyRepoRoot(h);
+  if (!v.ok) throw new Error(v.reason);
   await idbSet('repoRoot', h);
   return h;
 }
@@ -984,14 +1009,21 @@ function setupTabs() {
 // ============================================================
 // Setup overlay
 // ============================================================
-function showSetup() {
+function showSetup(reason = '') {
   document.getElementById('setup').style.display = 'flex';
   document.getElementById('setup-done').style.display = 'none';
+  document.getElementById('tabs').style.display = 'none';
+  document.getElementById('main').style.display = 'none';
+  const errEl = document.getElementById('fsa-error');
   if (!STATE.fsaSupported) {
-    document.getElementById('fsa-error').textContent =
+    errEl.textContent =
       'Your browser does not support the File System Access API. ' +
       'Chrome / Edge / Opera work. Firefox / Safari do not — use one of those instead, ' +
       'or use the configurator skills directly.';
+  } else if (reason) {
+    errEl.textContent = reason;
+  } else {
+    errEl.textContent = '';
   }
 }
 function hideSetup() {
@@ -1007,12 +1039,27 @@ async function boot() {
   STATE.creds = loadCreds();    // creds are optional; null is fine
   STATE.dirHandle = await getStoredHandle();
   let needsFsa = !STATE.dirHandle;
+  let setupReason = '';
   if (STATE.dirHandle) {
     const ok = await ensurePermission(STATE.dirHandle, 'readwrite');
-    if (!ok) needsFsa = true;
+    if (!ok) {
+      needsFsa = true;
+      setupReason = 'Browser revoked permission for the previously-picked directory. Re-grant below.';
+    } else {
+      // Permission OK — but is it actually the repo root? Catches the case
+      // where the user picked .claude/skills/dashboard/ instead of the repo,
+      // or where the directory was renamed/moved since the last session.
+      const v = await verifyRepoRoot(STATE.dirHandle);
+      if (!v.ok) {
+        needsFsa = true;
+        setupReason = v.reason;
+        STATE.dirHandle = null;
+        try { await idbSet('repoRoot', null); } catch {}
+      }
+    }
   }
   if (needsFsa) {
-    showSetup();
+    showSetup(setupReason);
     return;
   }
   await renderAll();
@@ -1032,12 +1079,28 @@ async function renderAll() {
   renderMarket();
   hideSetup();
 
+  // Surface picked dir on the Repo button — the operator can verify at a
+  // glance that they picked the right one. (We can't read the absolute path;
+  // FSA only gives us the leaf name.)
+  const repoBtn = document.getElementById('reset-fsa');
+  if (STATE.dirHandle) {
+    repoBtn.textContent = `📁 ${STATE.dirHandle.name}`;
+    repoBtn.title = `Currently reading from "${STATE.dirHandle.name}". Click to re-pick.`;
+  }
+
   const errCount = STATE.data.errors.length;
   const lastTickAt = STATE.data.tickSnaps.length ? STATE.data.tickSnaps[STATE.data.tickSnaps.length - 1].tick_at : null;
+  // Sanity warning: if we have an FSA handle that passed verifyRepoRoot but
+  // somehow tickSnaps is still 0, that's likely a fresh clone with no ticks
+  // yet — point the operator at master_configurator / master_trading.
+  const noTicksHint = (STATE.data.tickSnaps.length === 0)
+    ? ` · <span style="color:var(--yellow)">⚠ no tick snapshots yet — run /master_configurator if you haven't, or wait for the first scheduled tick</span>`
+    : '';
   document.getElementById('meta-line').innerHTML =
     `${STATE.data.account?.account_number ? `Paper account ${escapeHTML(STATE.data.account.account_number)} · ` : ''}` +
     `${lastTickAt ? `data as of last tick ${escapeHTML(fmtDate(lastTickAt))} · ` : ''}` +
     `loaded ${new Date().toLocaleTimeString()}` +
+    noTicksHint +
     (errCount > 0 ? ` · <span style="color:var(--yellow)">⚠ ${errCount} read error${errCount===1?'':'s'} (open DevTools console for details)</span>` : '');
   if (errCount > 0) {
     console.warn('ClaudeTrading dashboard load errors:', STATE.data.errors);
