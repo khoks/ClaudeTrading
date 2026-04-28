@@ -291,8 +291,7 @@ const STATE = {
     tickSnaps: [],         // array of {tick_at, account, positions, actions, sets, ...}
     dailySnaps: [],
     news: [],
-    capitol: [],           // Congressional trades filtered to pool tickers
-    capitolError: null,    // human-readable error if capitol fetch failed (CORS/WAF)
+    // (Capitol-trades JSON fields removed: tab 5 renders deep-links instead.)
     errors: [],
   },
   filters: {
@@ -456,7 +455,13 @@ async function alpacaFetch(path, { dataApi = false } = {}) {
 }
 
 // ============================================================
-// Main data load — local files via FSA + live Alpaca + best-effort capitol
+// Main data load — local files via FSA + (optional) Alpaca news.
+// Capitol-trades JSON is NOT fetched: bff.capitoltrades.com is behind a
+// Cloudflare WAF that blocks anything but a real browser TLS fingerprint
+// (file:// origin returns 503; even Python urllib with full browser
+// headers gets 503), and there is no CORS-friendly free aggregator. The
+// Market Intel tab renders per-ticker deep-links to capitoltrades.com
+// instead — one click, opens in a new tab with real data.
 // ============================================================
 async function loadAll() {
   STATE.data.errors = [];
@@ -494,32 +499,8 @@ async function loadAll() {
     STATE.data.news = [];
   }
 
-  // Best-effort: Capitol Trades from capitoltrades.com BFF.
-  // Real browsers send realistic fingerprint headers, which MAY bypass the
-  // Cloudflare WAF block we see from curl. CORS may still be the wall — null
-  // origin (file://) is rarely allow-listed. Fail soft either way.
-  STATE.data.capitol = [];
-  STATE.data.capitolError = null;
-  if (symbols.length) {
-    try {
-      const r = await fetch('https://bff.capitoltrades.com/trades?pageSize=100', {
-        headers: { 'accept': 'application/json' },
-        // Note: the browser sets Origin/Referer automatically based on the page.
-        // file:// origin is "null"; capitoltrades.com may or may not allow it.
-      });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const body = await r.json();
-      const set = new Set(symbols);
-      STATE.data.capitol = (body.data || [])
-        .filter(t => set.has(t?.asset?.assetTicker))
-        .sort((a, b) => (b.txDate || b.pubDate || '').localeCompare(a.txDate || a.pubDate || ''))
-        .slice(0, 50);
-    } catch (e) {
-      STATE.data.capitolError =
-        'Direct fetch from bff.capitoltrades.com failed (likely CORS for the file:// origin, or Cloudflare WAF). ' +
-        'Browser error: ' + e.message;
-    }
-  }
+  // Capitol-trades: no fetch (see comment above loadAll). Tab 5 renders
+  // per-ticker deep-links from STATE.data.pool.stocks directly.
 }
 
 // ============================================================
@@ -927,8 +908,7 @@ function renderPool() {
 // ============================================================
 function renderMarket() {
   const news = STATE.data.news || [];
-  const capitol = STATE.data.capitol || [];
-  const capitolError = STATE.data.capitolError;
+  const symbols = (STATE.data.pool?.stocks || []).map(s => s.symbol).filter(Boolean);
 
   const newsBlock = !STATE.creds
     ? `<div class="info">News is disabled because no Alpaca credentials are set. Click <strong>🔑 Creds</strong> in the header to enable — your key + secret stay in this browser&rsquo;s <code>localStorage</code>, sent only to Alpaca's API.</div>`
@@ -942,41 +922,39 @@ function renderMarket() {
           ${(n.symbols || []).length ? `<div class="symbols">${n.symbols.map(s => `<span class="sym">${escapeHTML(s)}</span>`).join('')}</div>` : ''}
         </div>`).join('');
 
-  const capitolTable = capitolError
-    ? `<div class="warning">Capitol Trades fetch failed: ${escapeHTML(capitolError)}<br><br>
-       <code>bff.capitoltrades.com</code> appears to block our request (Cloudflare WAF and/or CORS for the <code>null</code> origin that <code>file://</code> pages send). Alternatives to wire later: Quiver Quantitative API (paid, allows browser keys); House/Senate disclosure feeds; a small relay that runs locally and proxies the BFF.</div>`
-    : capitol.length === 0
-    ? '<div class="empty">No Congressional trades on your pool tickers in the most recent batch.</div>'
+  // Deep-links to congressional-trade sources, per pool ticker. We don't
+  // fetch JSON — capitoltrades's BFF is WAF-blocked from file:// origins,
+  // and there's no free CORS-friendly aggregator. The page just hands the
+  // operator one-click pivots into source-of-truth UIs.
+  const capitolBlock = symbols.length === 0
+    ? '<div class="empty">No tickers in your pool. Run /user_preferences_intake to add some.</div>'
     : `<table>
-       <thead><tr><th>Ticker</th><th>Politician</th><th>Chamber</th><th>Party</th><th>Type</th><th>Size</th><th>Tx date</th><th>Filed</th></tr></thead>
-       <tbody>${capitol.map(t => {
-         const pol = t.politician || {};
-         const asset = t.asset || {};
-         const name = pol.name || [pol.firstName, pol.lastName].filter(Boolean).join(' ') || '—';
-         const txTypeClass = (t.txType || '').toLowerCase().includes('buy') ? 'pos' : ((t.txType || '').toLowerCase().includes('sell') ? 'neg' : 'muted');
-         return `<tr>
-           <td class="sym">${escapeHTML(asset.assetTicker || '?')}</td>
-           <td>${escapeHTML(name)}</td>
-           <td class="muted">${escapeHTML(pol.chamber || '?')}</td>
-           <td class="muted">${escapeHTML(pol.party || '?')}</td>
-           <td class="${txTypeClass}">${escapeHTML(t.txType || '?')}</td>
-           <td class="num muted">${escapeHTML(t.size || t.value || '—')}</td>
-           <td class="muted">${escapeHTML((t.txDate || '').slice(0, 10) || '—')}</td>
-           <td class="muted">${escapeHTML((t.pubDate || '').slice(0, 10) || '—')}</td>
-         </tr>`;
+       <thead><tr><th>Ticker</th><th>Sources (open in new tab)</th></tr></thead>
+       <tbody>${symbols.map(sym => {
+         const s = encodeURIComponent(sym);
+         const links = [
+           [`https://www.capitoltrades.com/trades?txTicker=${s}`,                'Capitol Trades'],
+           [`https://www.quiverquant.com/sources/senatetrading/${s}`,            'Quiver (Senate)'],
+           [`https://www.quiverquant.com/sources/housetrading/${s}`,             'Quiver (House)'],
+         ].map(([href, label]) =>
+           `<a href="${href}" target="_blank" rel="noopener" style="color:#93c5fd; margin-right:14px">${label} ↗</a>`
+         ).join('');
+         return `<tr><td class="sym">${escapeHTML(sym)}</td><td>${links}</td></tr>`;
        }).join('')}</tbody></table>`;
 
   document.getElementById('tab-market').innerHTML = `
     <div class="grid">
       <section class="card full">
         <h2 style="color: var(--accent)">Pool ticker news (${news.length})</h2>
-        <div class="info" style="font-size:11px">Source: <a href="https://alpaca.markets/" target="_blank" rel="noopener" style="color:#93c5fd">Alpaca news API</a> · live, fetched on every page refresh.</div>
+        <div class="info" style="font-size:11px">Source: <a href="https://alpaca.markets/" target="_blank" rel="noopener" style="color:#93c5fd">Alpaca news API</a> · fetched live on every page refresh (when creds are set).</div>
         ${newsBlock}
       </section>
       <section class="card full">
-        <h2 style="color: var(--yellow)">Congressional trades on your pool tickers (${capitol.length})</h2>
-        <div class="info" style="font-size:11px">Source: <a href="https://www.capitoltrades.com/" target="_blank" rel="noopener" style="color:#93c5fd">capitoltrades.com</a> · live, filtered to tickers in your pool.</div>
-        ${capitolTable}
+        <h2 style="color: var(--yellow)">Congressional trades — pool deep-links</h2>
+        <div class="info" style="font-size:11px">
+          The dashboard does not fetch congressional-trade JSON: <code>bff.capitoltrades.com</code> is behind a Cloudflare WAF that blocks <code>file://</code> origins (and Python urllib too), and there is no free CORS-friendly aggregator. Click any source below to open the public site filtered to that ticker.
+        </div>
+        ${capitolBlock}
       </section>
     </div>`;
 }
