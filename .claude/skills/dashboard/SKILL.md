@@ -1,7 +1,7 @@
 ---
 name: dashboard
-description: This skill should be used when the user asks to "show my dashboard", "open the dashboard", "show my portfolio", "show recent activity", "edit my configs in browser", "show market news", or runs `/dashboard`. Opens the committed dashboard.html (a single static page) in the operator's default browser. The page builds itself from local files (latest tick snapshot + configs + pool) on every load via the File System Access API — no Alpaca creds needed by default. Optional 🔑 Creds button enables Alpaca news fetching. Capitol-trades come from a public endpoint. The Configuration tab lets the operator edit strategy tunables, preferences, and schedule cadence with browser-side writes back to persistence/config/*.json. No bash templating; no per-invocation regeneration.
-version: 0.3.0
+description: This skill should be used when the user asks to "show my dashboard", "open the dashboard", "show my portfolio", "show recent activity", "edit my configs in browser", "show market news", or runs `/dashboard`. Opens the committed dashboard.html (a single static page) in the operator's default browser. The page builds itself from local files (latest tick snapshot + configs + pool) on every load via the File System Access API — no Alpaca creds needed by default. Optional 🔑 Creds button enables Alpaca news fetching. Capitol-trades render as per-ticker deep-links (Cloudflare WAF blocks direct browser fetches). The Configuration tab lets the operator edit strategy tunables, preferences, and schedule cadence with browser-side writes back to persistence/config/*.json. No bash templating; no per-invocation regeneration.
+version: 0.4.0
 ---
 
 # dashboard
@@ -16,7 +16,7 @@ The dashboard is a **single committed HTML file** that builds itself from local 
 - `.claude/skills/dashboard/scripts/open.sh` — one-line skill body that opens the HTML using the OS-appropriate command (`open` / `xdg-open` / `start`).
 - **Default posture: zero credentials in the browser.** Account, positions, P/L, equity sparkline, activity, and pool all come from local files (the most recent tick snapshot + persistence configs) via the **File System Access API**. The operator grants the project root once; that single FSA handle covers reads + config writes.
 - **Optional opt-in: Alpaca credentials.** A 🔑 Creds button in the header opens a small dialog where the operator can paste their paper key/secret. With creds present, tab 5 (Market intel) starts fetching news from `data.alpaca.markets`. Without creds, news is shown as "disabled" with a one-click prompt to enable. **Account/positions still come from snapshots** even when creds are present — there is no live-account path in the browser, by design.
-- **Capitol trades** still fetch directly from `bff.capitoltrades.com` (no auth, no creds) — best-effort, gracefully fails on CORS.
+- **Capitol trades** are *not* fetched. `bff.capitoltrades.com` is behind a Cloudflare WAF that blocks anything but a real browser TLS fingerprint (file:// origins return 503; even Python urllib with full browser headers returns 503), and there's no free CORS-friendly aggregator. The dashboard renders **per-ticker deep-links** (Capitol Trades + Quiver Senate + Quiver House) — one click per row opens the public site filtered to that ticker.
 - **Edits to configs** — written through the same FSA handle. No bash, no PR, no skill round-trip; the files are gitignored so changes stay local.
 
 Why this layout:
@@ -37,9 +37,9 @@ Why browsers can't just `fetch('../../persistence/pool.json')` even though the f
    - **User preferences** — risk tolerance, max-per-trade, fractional shares. Save writes `persistence/config/user_preferences.json`. (Curated tickers stay editable through `/user_preferences_intake` — too risky to edit silently.)
    - **Schedule** — `tick_cadence_minutes`. Save writes `persistence/config/activation.json`. **Caveat shown inline:** changing this field updates the operator's *configuration*, but the actual cron registered with `mcp__scheduled-tasks` does not change automatically. To apply the new cadence to the live schedule, the operator must run `/master_configurator` in reconfigure mode (or call `mcp__scheduled-tasks__update_scheduled_task` directly).
 4. **Pool** — read-only table of every stock: last buy/sell, watermark, stop, total invested, realized P/L. To edit (add/remove tickers), the operator runs `/user_preferences_intake`.
-5. **Market intel** — two sources:
+5. **Market intel** — two sections:
    - **News** — `https://data.alpaca.markets/v1beta1/news?symbols=…` filtered to pool tickers, last 30 items, sort desc. **Requires creds.** When creds are absent (the default), the panel shows "News is disabled — click 🔑 Creds in the header to enable." When creds are present, the page fetches and renders the headlines.
-   - **Congressional trades** (`https://bff.capitoltrades.com/trades`) — no creds needed; fetched on every load. Best-effort: a real browser sends realistic fingerprint headers and may bypass the Cloudflare WAF that blocks raw curl, but the BFF likely doesn't allow CORS for the `null` (file://) origin. Wrapped in `try/catch`; on failure the dashboard shows a clear error message naming the cause and listing alternatives (Quiver Quantitative API; House/Senate disclosure feeds; a small local relay that proxies the BFF). Refresh the browser tab to retry.
+   - **Congressional trades — pool deep-links.** The dashboard does *not* fetch congressional-trade JSON. `bff.capitoltrades.com` is behind a Cloudflare WAF that blocks anything but a real browser TLS fingerprint (file:// origins return 503; even Python urllib with full browser headers returns 503), and there's no free CORS-friendly aggregator. Instead, the page renders a small table — one row per pool ticker — with deep-links to **Capitol Trades**, **Quiver (Senate)**, and **Quiver (House)** filtered to that ticker. One click opens the public site in a new tab with real data. The trade-off: no in-page table, but no silent failure and no third-party rate-limit concerns either.
 
 ## First-run setup
 
@@ -78,7 +78,7 @@ If FSA isn't supported (Firefox / Safari today): each "Save" button becomes a "D
 - **Default posture is zero credentials in the browser.** The dashboard runs purely from local files (snapshots, configs, pool) + an unauthenticated capitoltrades fetch. Nothing leaves the operator's machine in this mode except the capitoltrades request.
 - **Optional creds**: when the operator clicks 🔑 Creds and saves a key/secret, the values live in `localStorage`, page-origin scoped. The dashboard sends them only to `data.alpaca.markets` (for news). Same security level as `.env` on disk: anyone with filesystem access can read both. Cleared via the same dialog or by deleting the localStorage key.
 - The FSA handle is stored in IndexedDB, also page-origin scoped.
-- The dashboard makes at most these outbound HTTP requests: `bff.capitoltrades.com` (no auth, every load), `data.alpaca.markets` (with creds, only if creds opt-in for news). It never calls `paper-api.alpaca.markets` — account/positions come from snapshots.
+- The dashboard makes at most one outbound HTTP request, and only if the operator opts in: `data.alpaca.markets` (with creds, for news). It never calls `paper-api.alpaca.markets` (account/positions come from snapshots) and no longer calls `bff.capitoltrades.com` (deep-links instead). With no creds, the only outbound request when the page loads is fetching the dashboard.html itself.
 - The dashboard.html itself contains no operator data — it's safe to commit publicly.
 
 ## Reuse
