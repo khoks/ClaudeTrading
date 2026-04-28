@@ -1,7 +1,7 @@
 ---
 name: dashboard
-description: This skill should be used when the user asks to "show my dashboard", "open the dashboard", "show my portfolio", "show recent activity", "edit my configs in browser", "show market news", or runs `/dashboard`. Opens the committed dashboard.html (a single static page) in the operator's default browser. The page itself fetches live data on load — Alpaca API for account/positions/news, File System Access API for local configs/snapshots — so it always reflects current state. The Configuration tab lets the operator edit strategy tunables, preferences, and schedule cadence with browser-side writes back to persistence/config/*.json. No bash templating; no per-invocation regeneration.
-version: 0.2.0
+description: This skill should be used when the user asks to "show my dashboard", "open the dashboard", "show my portfolio", "show recent activity", "edit my configs in browser", "show market news", or runs `/dashboard`. Opens the committed dashboard.html (a single static page) in the operator's default browser. The page builds itself from local files (latest tick snapshot + configs + pool) on every load via the File System Access API — no Alpaca creds needed by default. Optional 🔑 Creds button enables Alpaca news fetching. Capitol-trades come from a public endpoint. The Configuration tab lets the operator edit strategy tunables, preferences, and schedule cadence with browser-side writes back to persistence/config/*.json. No bash templating; no per-invocation regeneration.
+version: 0.3.0
 ---
 
 # dashboard
@@ -10,19 +10,20 @@ Opens an in-browser status page that builds itself from current state on every p
 
 ## Architecture
 
-The dashboard is a **single committed HTML file** that pulls live data on every load (or refresh):
+The dashboard is a **single committed HTML file** that builds itself from local state on every load:
 
 - `.claude/skills/dashboard/dashboard.html` — committed static template, no operator data inlined.
 - `.claude/skills/dashboard/scripts/open.sh` — one-line skill body that opens the HTML using the OS-appropriate command (`open` / `xdg-open` / `start`).
-- All data assembly happens **in the browser**:
-  - **Live API calls** — Alpaca paper API for account / positions / news (CORS-supported). capitoltrades.com for Congressional trades (best-effort; may CORS-fail from the `null`/`file://` origin — the page renders a clear error in that case and points at alternatives).
-  - **Local files via the File System Access API** — pool, configs, snapshots. The page asks the operator to grant access to the project root once (handle stored in IndexedDB).
-  - **Edits to configs** — written through the same FSA handle. No bash, no PR, no skill round-trip; the files are gitignored so changes stay local.
+- **Default posture: zero credentials in the browser.** Account, positions, P/L, equity sparkline, activity, and pool all come from local files (the most recent tick snapshot + persistence configs) via the **File System Access API**. The operator grants the project root once; that single FSA handle covers reads + config writes.
+- **Optional opt-in: Alpaca credentials.** A 🔑 Creds button in the header opens a small dialog where the operator can paste their paper key/secret. With creds present, tab 5 (Market intel) starts fetching news from `data.alpaca.markets`. Without creds, news is shown as "disabled" with a one-click prompt to enable. **Account/positions still come from snapshots** even when creds are present — there is no live-account path in the browser, by design.
+- **Capitol trades** still fetch directly from `bff.capitoltrades.com` (no auth, no creds) — best-effort, gracefully fails on CORS.
+- **Edits to configs** — written through the same FSA handle. No bash, no PR, no skill round-trip; the files are gitignored so changes stay local.
 
 Why this layout:
-- **The page can stay open.** Operator hits Refresh and gets fresh Alpaca + capitol data without touching the terminal. No periodic skill or cron job needed for the dashboard itself.
+- **No browser-side secrets by default.** The operator's `.env` already has the Alpaca creds on disk; the dashboard does not need them re-entered just to display equity and positions, since `state_persistence` writes those into a tick snapshot every cadence-minutes anyway.
+- **The page can stay open.** Operator hits Refresh and re-reads the latest snapshot. No periodic skill or cron job needed for the dashboard itself.
+- **Trade-off acknowledged:** account/positions are *tick-cadence-fresh*, not real-time. With a 15-minute tick that's fine for a dashboard that's checked, not watched. If the operator wants real-time, they can opt into creds — but the architecture deliberately doesn't make this the default, because trading state on disk is already authoritative.
 - **No bash for data prep.** Earlier designs had a `fetch_market_intel.sh` step; that's been removed — the browser does it itself.
-- The page works offline gracefully: if Alpaca calls fail, it falls back to reading account/positions from the most recent tick snapshot (which `state_persistence` already wrote on disk). Capitol-trades failure is shown as an empty-state with the error reason.
 - Config editing fits naturally because the FSA handle is already there for reads.
 
 Why browsers can't just `fetch('../../persistence/pool.json')` even though the files are siblings: the `file://` scheme blocks cross-file fetches as a deliberate security feature (a malicious HTML opened from disk could otherwise read arbitrary local files). FSA is the official escape hatch — the operator *explicitly* grants access via picker.
@@ -36,21 +37,23 @@ Why browsers can't just `fetch('../../persistence/pool.json')` even though the f
    - **User preferences** — risk tolerance, max-per-trade, fractional shares. Save writes `persistence/config/user_preferences.json`. (Curated tickers stay editable through `/user_preferences_intake` — too risky to edit silently.)
    - **Schedule** — `tick_cadence_minutes`. Save writes `persistence/config/activation.json`. **Caveat shown inline:** changing this field updates the operator's *configuration*, but the actual cron registered with `mcp__scheduled-tasks` does not change automatically. To apply the new cadence to the live schedule, the operator must run `/master_configurator` in reconfigure mode (or call `mcp__scheduled-tasks__update_scheduled_task` directly).
 4. **Pool** — read-only table of every stock: last buy/sell, watermark, stop, total invested, realized P/L. To edit (add/remove tickers), the operator runs `/user_preferences_intake`.
-5. **Market intel** — fetched live in the browser:
-   - **News** — `https://data.alpaca.markets/v1beta1/news?symbols=…` filtered to pool tickers, last 30 items, sort desc. Alpaca supports browser CORS so this works directly.
-   - **Congressional trades** (`https://bff.capitoltrades.com/trades`) — best-effort. A real browser sends realistic fingerprint headers and may bypass the Cloudflare WAF that blocks raw curl, but the BFF likely doesn't allow CORS for the `null` (file://) origin. Wrapped in `try/catch`; on failure the dashboard shows a clear error message naming the cause and listing alternatives (Quiver Quantitative API; House/Senate disclosure feeds; a small local relay that proxies the BFF). Refresh the browser tab to retry.
+5. **Market intel** — two sources:
+   - **News** — `https://data.alpaca.markets/v1beta1/news?symbols=…` filtered to pool tickers, last 30 items, sort desc. **Requires creds.** When creds are absent (the default), the panel shows "News is disabled — click 🔑 Creds in the header to enable." When creds are present, the page fetches and renders the headlines.
+   - **Congressional trades** (`https://bff.capitoltrades.com/trades`) — no creds needed; fetched on every load. Best-effort: a real browser sends realistic fingerprint headers and may bypass the Cloudflare WAF that blocks raw curl, but the BFF likely doesn't allow CORS for the `null` (file://) origin. Wrapped in `try/catch`; on failure the dashboard shows a clear error message naming the cause and listing alternatives (Quiver Quantitative API; House/Senate disclosure feeds; a small local relay that proxies the BFF). Refresh the browser tab to retry.
 
 ## First-run setup
 
-When the dashboard is opened for the first time on a given browser, the page does:
+When the dashboard is opened for the first time on a given browser, the page does **one** thing:
 
-1. **Credentials** — checks `localStorage['claudetrading.creds']`. If absent, shows a small modal asking for `ALPACA_KEY` and `ALPACA_SECRET` (paper). Stored in `localStorage` only — same machine, same browser, never committed, never sent anywhere except to Alpaca's API. Same security level as the `.env` on disk: anyone with filesystem access already can read both.
-2. **Project root** — page checks IndexedDB for a stored `FileSystemDirectoryHandle`. If absent, shows a "Pick directory…" button that opens the OS picker via `window.showDirectoryPicker({mode: 'readwrite'})`. Operator picks the repo's project root.
-3. With both in place, the page fetches Alpaca live + tries capitoltrades + reads local files, then renders all tabs.
+1. **Project root (FSA grant)** — page checks IndexedDB for a stored `FileSystemDirectoryHandle`. If absent, shows a "Pick directory…" button that opens the OS picker via `window.showDirectoryPicker({mode: 'readwrite'})`. Operator picks the repo's project root.
 
-Subsequent loads: re-uses both. Browser may re-prompt for FSA permission across sessions (one click).
+That's it. With FSA in place, the page reads `persistence/snapshots/tick/`, `persistence/config/`, and `persistence/pool.json` directly, attempts capitoltrades over the network, and renders all five tabs. **No credentials are required or requested at first run.**
 
-**Refresh** any time by hitting the Refresh button or reloading the tab — re-fetches live data.
+**Optional later: enable news.** A 🔑 Creds button in the header opens a small dialog where the operator can paste `ALPACA_KEY` and `ALPACA_SECRET` (paper). Stored in `localStorage` only — same machine, same browser, never committed, never sent anywhere except to `data.alpaca.markets` for news fetching. Same security level as the `.env` on disk: anyone with filesystem access can already read both. Clear the creds any time via the same dialog.
+
+Subsequent loads: re-uses the FSA handle (browser may re-prompt for permission once per session — one click). Re-uses creds if previously entered.
+
+**Refresh** any time by hitting the Refresh button or reloading the tab — re-reads the latest tick snapshot, re-tries capitoltrades, re-fetches news (if creds present).
 
 ## Editing configs (Tab 3) — the save flow
 
@@ -72,9 +75,10 @@ If FSA isn't supported (Firefox / Safari today): each "Save" button becomes a "D
 
 ## Security notes
 
-- Alpaca creds live in `localStorage`, page-origin scoped. The dashboard sends them only to `paper-api.alpaca.markets` and `data.alpaca.markets`. Same security level as `.env` on disk.
+- **Default posture is zero credentials in the browser.** The dashboard runs purely from local files (snapshots, configs, pool) + an unauthenticated capitoltrades fetch. Nothing leaves the operator's machine in this mode except the capitoltrades request.
+- **Optional creds**: when the operator clicks 🔑 Creds and saves a key/secret, the values live in `localStorage`, page-origin scoped. The dashboard sends them only to `data.alpaca.markets` (for news). Same security level as `.env` on disk: anyone with filesystem access can read both. Cleared via the same dialog or by deleting the localStorage key.
 - The FSA handle is stored in IndexedDB, also page-origin scoped.
-- The dashboard makes outbound HTTP requests to: Alpaca paper API (with creds), Alpaca data API (with creds), and `bff.capitoltrades.com` (no auth, public endpoint). Nothing else.
+- The dashboard makes at most these outbound HTTP requests: `bff.capitoltrades.com` (no auth, every load), `data.alpaca.markets` (with creds, only if creds opt-in for news). It never calls `paper-api.alpaca.markets` — account/positions come from snapshots.
 - The dashboard.html itself contains no operator data — it's safe to commit publicly.
 
 ## Reuse

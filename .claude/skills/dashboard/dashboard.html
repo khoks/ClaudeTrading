@@ -233,24 +233,10 @@
 <div id="setup">
   <div class="box">
     <h2>First-time setup</h2>
-    <p>The dashboard fetches live: Alpaca for account / positions / news, capitoltrades.com for Congressional trades on your pool tickers. Local files (configs, snapshots, pool) come from your repo via the File System Access API. Two one-time grants:</p>
-
-    <div class="step" id="step-creds">
-      <h3>1. Alpaca paper credentials</h3>
-      <p>Stored in your browser's <code>localStorage</code> only — same machine, same browser, never committed. Sent only to Alpaca's API. Same security level as the <code>.env</code> on disk: anyone with filesystem access to your machine can already read both.</p>
-      <div class="row">
-        <input id="in-key" type="text" placeholder="ALPACA_KEY (PK…)" autocomplete="off">
-      </div>
-      <div class="row">
-        <input id="in-secret" type="password" placeholder="ALPACA_SECRET (shown once when you regenerate on Alpaca dashboard)" autocomplete="off">
-      </div>
-      <div class="row">
-        <button class="btn-primary" id="save-creds">Save credentials</button>
-      </div>
-    </div>
+    <p>The dashboard reads everything from your local <code>persistence/</code> directory — account, positions, configs, snapshots, pool. One grant is needed.</p>
 
     <div class="step" id="step-fsa">
-      <h3>2. Pick the repo's project root</h3>
+      <h3>Pick the repo's project root</h3>
       <p>Grants the page read+write access to <code>persistence/</code> for configs and snapshots. <code>FileSystemDirectoryHandle</code> stored in IndexedDB; never uploaded. Browsers block <code>file://</code>-to-<code>file://</code> reads as a security feature, so this explicit grant is the sandbox-friendly path.</p>
       <button class="btn-primary" id="pick-dir">Pick directory…</button>
       <div id="fsa-error" style="color: var(--red); font-size: 12px; margin-top: 8px;"></div>
@@ -259,8 +245,29 @@
     <div id="setup-done" style="display:none">
       <button class="btn-primary" id="finish-setup">Continue to dashboard →</button>
     </div>
+
+    <p style="margin-top: 18px; font-size: 12px; color: var(--dim);">
+      <strong>Optional, later:</strong> if you want live news in the Market intel tab, click <strong>🔑 Creds</strong> in the header any time to paste your Alpaca paper key. The dashboard does not require credentials to function — tabs 1–4 work fully without them, and the Congressional-trades section in tab 5 is fetched without auth.
+    </p>
   </div>
 </div>
+
+<dialog id="creds-dialog">
+  <form method="dialog" style="background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 22px; max-width: 460px; width: 100%;">
+    <h2 style="margin: 0 0 6px; font-size: 16px; text-transform: none; letter-spacing: 0; color: var(--text);">Alpaca credentials (optional)</h2>
+    <p style="color: var(--muted); font-size: 12px; margin: 6px 0 14px;">
+      Stored in <code>localStorage</code>. Sent only to Alpaca's API. Used by the news fetch in the Market intel tab. Leave blank and click Save to disable news fetching.
+    </p>
+    <input id="in-key" type="text" placeholder="ALPACA_KEY (PK…)" autocomplete="off"
+      style="background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 13px; width: 100%; font-family: ui-monospace, Consolas, monospace; margin-bottom: 8px;">
+    <input id="in-secret" type="password" placeholder="ALPACA_SECRET" autocomplete="off"
+      style="background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 13px; width: 100%; font-family: ui-monospace, Consolas, monospace; margin-bottom: 14px;">
+    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+      <button type="button" class="btn-secondary" id="cancel-creds">Cancel</button>
+      <button type="button" class="btn-primary" id="save-creds">Save</button>
+    </div>
+  </form>
+</dialog>
 
 <div id="toast"></div>
 
@@ -437,21 +444,17 @@ async function loadAll() {
   try { STATE.data.tickSnaps  = await readSnapshots('persistence/snapshots/tick',   200); } catch (e) { STATE.data.errors.push('tick snapshots: ' + e.message); }
   try { STATE.data.dailySnaps = await readSnapshots('persistence/snapshots/daily',  60);  } catch (e) { STATE.data.errors.push('daily snapshots: ' + e.message); }
 
-  // Live Alpaca: account + positions. Fall back to last tick snapshot if the
-  // call fails (offline, CORS issue, expired creds, etc).
-  try {
-    STATE.data.account   = await alpacaFetch('/account');
-    STATE.data.positions = await alpacaFetch('/positions');
-  } catch (e) {
-    STATE.data.errors.push('Alpaca account/positions: ' + e.message + ' — falling back to last tick snapshot');
-    const last = STATE.data.tickSnaps[STATE.data.tickSnaps.length - 1];
-    STATE.data.account   = last?.account   || {};
-    STATE.data.positions = last?.positions || [];
-  }
+  // Account / positions ALWAYS come from the latest tick snapshot — no creds
+  // needed. master_trading writes a fresh tick on schedule; refresh to pick up.
+  const last = STATE.data.tickSnaps[STATE.data.tickSnaps.length - 1];
+  STATE.data.account   = last?.account   || {};
+  STATE.data.positions = last?.positions || [];
 
-  // Live Alpaca: news for pool tickers
+  // News from Alpaca: ONLY if the operator has opted in by saving creds.
+  // Without creds, the news section in tab 5 shows a "paste creds to enable"
+  // prompt. With creds, fetch live for the pool tickers.
   const symbols = (STATE.data.pool.stocks || []).map(s => s.symbol);
-  if (symbols.length) {
+  if (STATE.creds && symbols.length) {
     try {
       const newsResp = await alpacaFetch(
         `/v1beta1/news?symbols=${encodeURIComponent(symbols.join(','))}&limit=30&sort=desc`,
@@ -902,7 +905,9 @@ function renderMarket() {
   const capitol = STATE.data.capitol || [];
   const capitolError = STATE.data.capitolError;
 
-  const newsBlock = news.length === 0
+  const newsBlock = !STATE.creds
+    ? `<div class="info">News is disabled because no Alpaca credentials are set. Click <strong>🔑 Creds</strong> in the header to enable — your key + secret stay in this browser&rsquo;s <code>localStorage</code>, sent only to Alpaca's API.</div>`
+    : news.length === 0
     ? '<div class="empty">No news returned for your pool tickers right now.</div>'
     : news.map(n => `
         <div class="news-item">
@@ -979,11 +984,9 @@ function setupTabs() {
 // ============================================================
 // Setup overlay
 // ============================================================
-function showSetup(stepCreds, stepFsa) {
+function showSetup() {
   document.getElementById('setup').style.display = 'flex';
-  document.getElementById('step-creds').classList.toggle('done', !stepCreds);
-  document.getElementById('step-fsa').classList.toggle('done', !stepFsa);
-  document.getElementById('setup-done').style.display = (!stepCreds && !stepFsa) ? 'block' : 'none';
+  document.getElementById('setup-done').style.display = 'none';
   if (!STATE.fsaSupported) {
     document.getElementById('fsa-error').textContent =
       'Your browser does not support the File System Access API. ' +
@@ -1001,17 +1004,15 @@ function hideSetup() {
 // Boot
 // ============================================================
 async function boot() {
-  STATE.creds = loadCreds();
+  STATE.creds = loadCreds();    // creds are optional; null is fine
   STATE.dirHandle = await getStoredHandle();
-
-  const needsCreds = !STATE.creds;
   let needsFsa = !STATE.dirHandle;
   if (STATE.dirHandle) {
     const ok = await ensurePermission(STATE.dirHandle, 'readwrite');
     if (!ok) needsFsa = true;
   }
-  if (needsCreds || needsFsa) {
-    showSetup(needsCreds, needsFsa);
+  if (needsFsa) {
+    showSetup();
     return;
   }
   await renderAll();
@@ -1046,15 +1047,36 @@ async function renderAll() {
 // ============================================================
 // Event wiring
 // ============================================================
-document.getElementById('save-creds').addEventListener('click', () => {
+// Creds dialog (modal triggered by header "🔑 Creds" button at any time)
+const credsDialog = document.getElementById('creds-dialog');
+function openCredsDialog() {
+  document.getElementById('in-key').value = STATE.creds?.key ?? '';
+  document.getElementById('in-secret').value = STATE.creds?.secret ?? '';
+  credsDialog.showModal();
+}
+function closeCredsDialog() { credsDialog.close(); }
+
+document.getElementById('save-creds').addEventListener('click', async () => {
   const key = document.getElementById('in-key').value.trim();
   const secret = document.getElementById('in-secret').value.trim();
-  if (!key || !secret) { toast('Both key and secret required', true); return; }
-  STATE.creds = { key, secret };
-  saveCreds(STATE.creds);
-  toast('Credentials saved');
-  showSetup(false, !STATE.dirHandle);
+  if (!key && !secret) {
+    clearCreds(); STATE.creds = null;
+    toast('Credentials cleared — news disabled');
+  } else if (!key || !secret) {
+    toast('Both key and secret required (or both blank to disable)', true);
+    return;
+  } else {
+    STATE.creds = { key, secret };
+    saveCreds(STATE.creds);
+    toast('Credentials saved — news will fetch on next refresh');
+  }
+  closeCredsDialog();
+  // Re-render so news section updates immediately if dashboard is visible
+  if (document.getElementById('main').style.display !== 'none') {
+    await renderAll();
+  }
 });
+document.getElementById('cancel-creds').addEventListener('click', closeCredsDialog);
 
 document.getElementById('pick-dir').addEventListener('click', async () => {
   if (!STATE.fsaSupported) {
@@ -1064,7 +1086,7 @@ document.getElementById('pick-dir').addEventListener('click', async () => {
   }
   try {
     STATE.dirHandle = await pickRepoRoot();
-    showSetup(!STATE.creds, false);
+    document.getElementById('setup-done').style.display = 'block';
     toast('Directory access granted');
   } catch (e) {
     document.getElementById('fsa-error').textContent = 'Picker cancelled or failed: ' + e.message;
@@ -1073,14 +1095,11 @@ document.getElementById('pick-dir').addEventListener('click', async () => {
 
 document.getElementById('finish-setup').addEventListener('click', renderAll);
 document.getElementById('refresh').addEventListener('click', renderAll);
-document.getElementById('reset-creds').addEventListener('click', () => {
-  clearCreds(); STATE.creds = null;
-  showSetup(true, !STATE.dirHandle);
-});
+document.getElementById('reset-creds').addEventListener('click', openCredsDialog);
 document.getElementById('reset-fsa').addEventListener('click', async () => {
   STATE.dirHandle = null;
   await idbSet('repoRoot', null);
-  showSetup(!STATE.creds, true);
+  showSetup();
 });
 
 setupTabs();
