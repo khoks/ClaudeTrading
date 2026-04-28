@@ -201,7 +201,6 @@
     <div class="meta" id="meta-line">Loading…</div>
   </div>
   <div>
-    <button id="reset-creds" title="Re-enter Alpaca credentials">🔑 Creds</button>
     <button id="reset-fsa" title="Re-pick project root directory">📁 Repo</button>
     <button id="refresh">↻ Refresh</button>
   </div>
@@ -233,25 +232,11 @@
 <div id="setup">
   <div class="box">
     <h2>First-time setup</h2>
-    <p>The dashboard fetches data live: Alpaca for your account, and your local <code>persistence/</code> directory for snapshots and configs. Two one-time grants are needed.</p>
-
-    <div class="step" id="step-creds">
-      <h3>1. Alpaca paper credentials</h3>
-      <p>Stored in your browser's <code>localStorage</code> only. Never sent anywhere except Alpaca's own API.</p>
-      <div class="row">
-        <input id="in-key" type="text" placeholder="ALPACA_KEY (PK…)" autocomplete="off">
-      </div>
-      <div class="row">
-        <input id="in-secret" type="password" placeholder="ALPACA_SECRET (shown once when you regenerate)" autocomplete="off">
-      </div>
-      <div class="row">
-        <button class="btn-primary" id="save-creds">Save credentials</button>
-      </div>
-    </div>
+    <p>The dashboard reads everything from your local <code>persistence/</code> directory — snapshots, configs, the market-intel cache. No outbound HTTP, no API keys. One grant is needed.</p>
 
     <div class="step" id="step-fsa">
-      <h3>2. Pick the repo's project root</h3>
-      <p>Grants this page read+write access to your <code>persistence/</code> and <code>persistence/config/</code> directories. Stored as a <code>FileSystemDirectoryHandle</code> in IndexedDB; never uploaded anywhere.</p>
+      <h3>Pick the repo's project root</h3>
+      <p>Grants this page read+write access to your <code>persistence/</code> and <code>persistence/config/</code> directories. Stored as a <code>FileSystemDirectoryHandle</code> in IndexedDB; never uploaded anywhere. Browsers deliberately block <code>file://</code>-to-<code>file://</code> reads for security, even within the same project tree, so this explicit grant is the sandbox-friendly way for the page to access nearby files.</p>
       <button class="btn-primary" id="pick-dir">Pick directory…</button>
       <div id="fsa-error" style="color: var(--red); font-size: 12px; margin-top: 8px;"></div>
     </div>
@@ -271,7 +256,6 @@
 // State
 // ============================================================
 const STATE = {
-  creds: null,             // { key, secret }
   dirHandle: null,         // FileSystemDirectoryHandle for project root
   data: {                  // populated by loadAll()
     account: null,
@@ -282,7 +266,9 @@ const STATE = {
     defaults: {},
     tickSnaps: [],         // array of {tick_at, account, positions, actions, sets, ...}
     dailySnaps: [],
+    marketIntel: null,     // contents of persistence/market_intel.json
     news: [],
+    capitol: [],
     errors: [],
   },
   filters: {
@@ -322,20 +308,6 @@ async function idbSet(key, value) {
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
-}
-
-// ============================================================
-// Credentials
-// ============================================================
-const CREDS_KEY = 'claudetrading.creds';
-function loadCreds() {
-  try { return JSON.parse(localStorage.getItem(CREDS_KEY) || 'null'); } catch { return null; }
-}
-function saveCreds(creds) {
-  localStorage.setItem(CREDS_KEY, JSON.stringify(creds));
-}
-function clearCreds() {
-  localStorage.removeItem(CREDS_KEY);
 }
 
 // ============================================================
@@ -410,63 +382,28 @@ async function readSnapshots(dirPath, limit = null) {
 }
 
 // ============================================================
-// Alpaca API
-// ============================================================
-async function alpacaFetch(path, { dataApi = false } = {}) {
-  const base = dataApi ? 'https://data.alpaca.markets' : 'https://paper-api.alpaca.markets/v2';
-  const res = await fetch(base + path, {
-    headers: {
-      'APCA-API-KEY-ID': STATE.creds.key,
-      'APCA-API-SECRET-KEY': STATE.creds.secret,
-      'accept': 'application/json',
-    },
-  });
-  if (!res.ok) throw new Error(`Alpaca ${path} → HTTP ${res.status}: ${(await res.text()).slice(0,200)}`);
-  return await res.json();
-}
-
-// ============================================================
-// Main data load
+// Main data load — everything from local files via FSA. No outbound HTTP.
 // ============================================================
 async function loadAll() {
   STATE.data.errors = [];
-  // Local files via FSA — always read first; some don't exist on a fresh clone.
-  try { STATE.data.pool       = await readJSON('persistence/pool.json',                          { stocks: [] }); } catch (e) { STATE.data.errors.push('pool.json: ' + e.message); }
-  try { STATE.data.prefs      = await readJSON('persistence/config/user_preferences.json',       {}); } catch (e) { STATE.data.errors.push('user_preferences: ' + e.message); }
-  try { STATE.data.activation = await readJSON('persistence/config/activation.json',             { configured: false }); } catch (e) { STATE.data.errors.push('activation: ' + e.message); }
-  try { STATE.data.defaults   = await readJSON('persistence/config/strategy_defaults.json',      {}); } catch (e) { STATE.data.errors.push('strategy_defaults: ' + e.message); }
-  try { STATE.data.tickSnaps  = await readSnapshots('persistence/snapshots/tick',   200); } catch (e) { STATE.data.errors.push('tick snapshots: ' + e.message); }
-  try { STATE.data.dailySnaps = await readSnapshots('persistence/snapshots/daily',  60);  } catch (e) { STATE.data.errors.push('daily snapshots: ' + e.message); }
 
-  // Alpaca live data
-  try {
-    STATE.data.account   = await alpacaFetch('/account');
-    STATE.data.positions = await alpacaFetch('/positions');
-  } catch (e) {
-    STATE.data.errors.push('Alpaca live fetch: ' + e.message + ' (falling back to last tick snapshot)');
-    const last = STATE.data.tickSnaps[STATE.data.tickSnaps.length - 1];
-    if (last) {
-      STATE.data.account = last.account;
-      STATE.data.positions = last.positions;
-    } else {
-      STATE.data.account = {};
-      STATE.data.positions = [];
-    }
-  }
+  try { STATE.data.pool        = await readJSON('persistence/pool.json',                          { stocks: [] }); } catch (e) { STATE.data.errors.push('pool.json: ' + e.message); }
+  try { STATE.data.prefs       = await readJSON('persistence/config/user_preferences.json',       {}); } catch (e) { STATE.data.errors.push('user_preferences: ' + e.message); }
+  try { STATE.data.activation  = await readJSON('persistence/config/activation.json',             { configured: false }); } catch (e) { STATE.data.errors.push('activation: ' + e.message); }
+  try { STATE.data.defaults    = await readJSON('persistence/config/strategy_defaults.json',      {}); } catch (e) { STATE.data.errors.push('strategy_defaults: ' + e.message); }
+  try { STATE.data.tickSnaps   = await readSnapshots('persistence/snapshots/tick',   200); } catch (e) { STATE.data.errors.push('tick snapshots: ' + e.message); }
+  try { STATE.data.dailySnaps  = await readSnapshots('persistence/snapshots/daily',  60);  } catch (e) { STATE.data.errors.push('daily snapshots: ' + e.message); }
+  try { STATE.data.marketIntel = await readJSON('persistence/market_intel.json',                   null); } catch (e) { STATE.data.errors.push('market_intel.json: ' + e.message); }
 
-  // News for pool tickers
-  try {
-    const symbols = (STATE.data.pool.stocks || []).map(s => s.symbol).join(',');
-    if (symbols) {
-      const newsResp = await alpacaFetch(`/v1beta1/news?symbols=${encodeURIComponent(symbols)}&limit=30&sort=desc`, { dataApi: true });
-      STATE.data.news = newsResp.news || [];
-    } else {
-      STATE.data.news = [];
-    }
-  } catch (e) {
-    STATE.data.errors.push('news fetch: ' + e.message);
-    STATE.data.news = [];
-  }
+  // Account / positions from the most recent tick snapshot.
+  // (state_persistence wrote them on the last tick. At most cadence-min stale.)
+  const last = STATE.data.tickSnaps[STATE.data.tickSnaps.length - 1];
+  STATE.data.account = last?.account || {};
+  STATE.data.positions = last?.positions || [];
+
+  // News + Capitol Trades from the local cache populated by fetch_market_intel.sh.
+  STATE.data.news = STATE.data.marketIntel?.news || [];
+  STATE.data.capitol = STATE.data.marketIntel?.capitol_trades || [];
 }
 
 // ============================================================
@@ -873,30 +810,57 @@ function renderPool() {
 // Tab: Market intel
 // ============================================================
 function renderMarket() {
+  const intel = STATE.data.marketIntel;
   const news = STATE.data.news || [];
+  const capitol = STATE.data.capitol || [];
+  const fetchedAt = intel?.fetched_at;
+
+  const stalenessBanner = !intel
+    ? `<div class="warning">No market-intel cache found. Run <code>bash .claude/skills/dashboard/scripts/fetch_market_intel.sh</code> to populate it (fetches Alpaca news + Congressional trades from capitoltrades.com for your pool tickers).</div>`
+    : `<div class="info">Cache fetched ${escapeHTML(fmtDate(fetchedAt))} · re-run <code>fetch_market_intel.sh</code> to refresh.</div>`;
+
   const newsBlock = news.length === 0
-    ? '<div class="empty">No news available for your pool tickers right now (or news API failed).</div>'
+    ? '<div class="empty">No news in cache for your pool tickers.</div>'
     : news.map(n => `
         <div class="news-item">
-          <h3><a href="${escapeHTML(n.url)}" target="_blank" rel="noopener">${escapeHTML(n.headline)}</a></h3>
+          <h3>${n.url ? `<a href="${escapeHTML(n.url)}" target="_blank" rel="noopener">${escapeHTML(n.headline)}</a>` : escapeHTML(n.headline)}</h3>
           <div class="meta">${escapeHTML(n.source || '?')} · ${escapeHTML(fmtDate(n.created_at))} · by ${escapeHTML(n.author || 'unknown')}</div>
           ${n.summary ? `<div class="summary">${escapeHTML(n.summary).slice(0, 280)}${n.summary.length > 280 ? '…' : ''}</div>` : ''}
           ${(n.symbols || []).length ? `<div class="symbols">${n.symbols.map(s => `<span class="sym">${escapeHTML(s)}</span>`).join('')}</div>` : ''}
         </div>`).join('');
 
+  const capitolTable = capitol.length === 0
+    ? '<div class="empty">No Congressional trades in cache. <code>bff.capitoltrades.com</code> currently blocks non-browser callers (HTTP 503), and the public page uses Next.js streaming that <code>fetch_market_intel.sh</code> can&rsquo;t parse without a headless browser. Alternatives — Quiver Quantitative API, House/Senate disclosure feeds, or a Playwright-based fetcher — pending a follow-up.</div>'
+    : `<table>
+       <thead><tr><th>Ticker</th><th>Politician</th><th>Chamber</th><th>Party</th><th>Type</th><th>Size</th><th>Tx date</th><th>Filed</th></tr></thead>
+       <tbody>${capitol.map(t => {
+         const pol = t.politician || {};
+         const asset = t.asset || {};
+         const name = pol.name || [pol.firstName, pol.lastName].filter(Boolean).join(' ') || '—';
+         const txTypeClass = (t.txType || '').toLowerCase().includes('buy') ? 'pos' : ((t.txType || '').toLowerCase().includes('sell') ? 'neg' : 'muted');
+         return `<tr>
+           <td class="sym">${escapeHTML(asset.assetTicker || '?')}</td>
+           <td>${escapeHTML(name)}</td>
+           <td class="muted">${escapeHTML(pol.chamber || '?')}</td>
+           <td class="muted">${escapeHTML(pol.party || '?')}</td>
+           <td class="${txTypeClass}">${escapeHTML(t.txType || '?')}</td>
+           <td class="num muted">${escapeHTML(t.size || t.value || '—')}</td>
+           <td class="muted">${escapeHTML((t.txDate || '').slice(0, 10) || '—')}</td>
+           <td class="muted">${escapeHTML((t.pubDate || '').slice(0, 10) || '—')}</td>
+         </tr>`;
+       }).join('')}</tbody></table>`;
+
   document.getElementById('tab-market').innerHTML = `
+    ${stalenessBanner}
     <div class="grid">
       <section class="card full">
-        <h2 style="color: var(--accent)">Pool ticker news (Alpaca, last ${news.length})</h2>
+        <h2 style="color: var(--accent)">Pool ticker news (${news.length})</h2>
         ${newsBlock}
       </section>
       <section class="card full">
-        <h2 style="color: var(--yellow)">Congressional / insider trades</h2>
-        <div class="info">
-          Source not yet wired. Tell Claude which site to pull from
-          (<code>capitoltrades.com</code> for Congressional disclosures? something else?) and
-          this section will get hooked up in a follow-up PR.
-        </div>
+        <h2 style="color: var(--yellow)">Congressional trades on your pool tickers (${capitol.length})</h2>
+        <div class="info" style="font-size:11px">Source: <a href="https://www.capitoltrades.com/" target="_blank" rel="noopener" style="color:#93c5fd">capitoltrades.com</a> · only trades on tickers in your pool are shown.</div>
+        ${capitolTable}
       </section>
     </div>`;
 }
@@ -929,12 +893,9 @@ function setupTabs() {
 // ============================================================
 // Setup overlay
 // ============================================================
-function showSetup(stepCreds, stepFsa) {
-  const setup = document.getElementById('setup');
-  setup.style.display = 'flex';
-  document.getElementById('step-creds').classList.toggle('done', !stepCreds);
-  document.getElementById('step-fsa').classList.toggle('done', !stepFsa);
-  document.getElementById('setup-done').style.display = (!stepCreds && !stepFsa) ? 'block' : 'none';
+function showSetup() {
+  document.getElementById('setup').style.display = 'flex';
+  document.getElementById('setup-done').style.display = 'none';
   if (!STATE.fsaSupported) {
     document.getElementById('fsa-error').textContent =
       'Your browser does not support the File System Access API. ' +
@@ -952,22 +913,16 @@ function hideSetup() {
 // Boot
 // ============================================================
 async function boot() {
-  // Load creds + handle from storage
-  STATE.creds = loadCreds();
   STATE.dirHandle = await getStoredHandle();
-
-  const needsCreds = !STATE.creds;
   let needsFsa = !STATE.dirHandle;
   if (STATE.dirHandle) {
     const ok = await ensurePermission(STATE.dirHandle, 'readwrite');
     if (!ok) needsFsa = true;
   }
-
-  if (needsCreds || needsFsa) {
-    showSetup(needsCreds, needsFsa);
+  if (needsFsa) {
+    showSetup();
     return;
   }
-
   await renderAll();
 }
 
@@ -989,9 +944,9 @@ async function renderAll() {
   const lastTickAt = STATE.data.tickSnaps.length ? STATE.data.tickSnaps[STATE.data.tickSnaps.length - 1].tick_at : null;
   document.getElementById('meta-line').innerHTML =
     `${STATE.data.account?.account_number ? `Paper account ${escapeHTML(STATE.data.account.account_number)} · ` : ''}` +
-    `${lastTickAt ? `last tick ${escapeHTML(fmtDate(lastTickAt))} · ` : ''}` +
+    `${lastTickAt ? `data as of last tick ${escapeHTML(fmtDate(lastTickAt))} · ` : ''}` +
     `loaded ${new Date().toLocaleTimeString()}` +
-    (errCount > 0 ? ` · <span style="color:var(--yellow)">⚠ ${errCount} fetch error${errCount===1?'':'s'} (open DevTools console for details)</span>` : '');
+    (errCount > 0 ? ` · <span style="color:var(--yellow)">⚠ ${errCount} read error${errCount===1?'':'s'} (open DevTools console for details)</span>` : '');
   if (errCount > 0) {
     console.warn('ClaudeTrading dashboard load errors:', STATE.data.errors);
   }
@@ -1000,17 +955,6 @@ async function renderAll() {
 // ============================================================
 // Event wiring
 // ============================================================
-document.getElementById('save-creds').addEventListener('click', async () => {
-  const key = document.getElementById('in-key').value.trim();
-  const secret = document.getElementById('in-secret').value.trim();
-  if (!key || !secret) { toast('Both key and secret required', true); return; }
-  STATE.creds = { key, secret };
-  saveCreds(STATE.creds);
-  toast('Credentials saved');
-  // Re-evaluate setup state
-  showSetup(false, !STATE.dirHandle);
-});
-
 document.getElementById('pick-dir').addEventListener('click', async () => {
   if (!STATE.fsaSupported) {
     document.getElementById('fsa-error').textContent =
@@ -1019,7 +963,7 @@ document.getElementById('pick-dir').addEventListener('click', async () => {
   }
   try {
     STATE.dirHandle = await pickRepoRoot();
-    showSetup(!STATE.creds, false);
+    document.getElementById('setup-done').style.display = 'block';
     toast('Directory access granted');
   } catch (e) {
     document.getElementById('fsa-error').textContent = 'Picker cancelled or failed: ' + e.message;
@@ -1027,18 +971,11 @@ document.getElementById('pick-dir').addEventListener('click', async () => {
 });
 
 document.getElementById('finish-setup').addEventListener('click', renderAll);
-
 document.getElementById('refresh').addEventListener('click', renderAll);
-
-document.getElementById('reset-creds').addEventListener('click', () => {
-  clearCreds(); STATE.creds = null;
-  showSetup(true, !STATE.dirHandle);
-});
-
 document.getElementById('reset-fsa').addEventListener('click', async () => {
   STATE.dirHandle = null;
   await idbSet('repoRoot', null);
-  showSetup(!STATE.creds, true);
+  showSetup();
 });
 
 setupTabs();

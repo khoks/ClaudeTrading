@@ -101,18 +101,21 @@ A live, in-browser status page with five tabs (Portfolio · Activity · Configur
 > /dashboard
 ```
 
-This opens `.claude/skills/dashboard/dashboard.html` in your default browser. The page **fetches its own data on load**:
+This opens `.claude/skills/dashboard/dashboard.html` in your default browser. The page **builds itself from local files** on every open — no API keys in the browser, no outbound HTTP, no servers.
 
-- **Live values** (account, positions, news) — direct calls to Alpaca's paper API.
-- **Local files** (configs, snapshots, pool) — read via the File System Access API after you grant the page access to the project root once.
+First-time setup is one click: the page asks you to pick the repo's project root via the File System Access API (handle stored in IndexedDB; reused on subsequent opens). All five tabs then render from your local `persistence/` directory.
 
-First-time setup is a two-step in-page flow: paste your Alpaca paper credentials (stored in browser `localStorage`, never sent anywhere except Alpaca), then click **Pick directory…** and select your repo's project root (`FileSystemDirectoryHandle` stored in IndexedDB). Subsequent opens reuse both. **Refresh** the browser tab to re-fetch.
+**To populate the news + Congressional-trades section** (tab 5), run the cache fetcher when you want fresh data:
 
-The Configuration tab also lets you **edit strategy tunables, preferences, and schedule cadence** directly in the browser — saving writes back through the same FSA handle to `persistence/config/*.json`. No PR, no skill round-trip; the files are gitignored per-operator.
+```bash
+bash .claude/skills/dashboard/scripts/fetch_market_intel.sh
+```
+
+This uses your `.env` Alpaca credentials to pull news for your pool tickers, attempts a best-effort fetch from capitoltrades.com (the public site firewalls non-browser API access — see SKILL.md for the known limitation), and writes the cache to `persistence/market_intel.json`. Wire it into a daily scheduled task if you want it always-fresh.
+
+The Configuration tab lets you **edit strategy tunables, preferences, and schedule cadence** directly in the browser — saving writes back through the same FSA handle to `persistence/config/*.json`. No PR, no skill round-trip; the files are gitignored per-operator.
 
 **Browser support:** Chrome / Edge / Opera (Chromium) for full read+write. Firefox / Safari can read but config edits fall back to a "Download as JSON" button.
-
-Your portfolio data never leaves your machine — the dashboard's only outbound calls are to Alpaca's API with your own credentials.
 
 ## Contributing
 
