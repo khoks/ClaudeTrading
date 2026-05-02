@@ -2,6 +2,7 @@
   "configured": false,
   "activated_at": null,
   "tick_cadence_minutes": null,
+  "master_trading_variant": "v1",
   "schedule_ids": {
     "master_trading": null,
     "reporting": null
