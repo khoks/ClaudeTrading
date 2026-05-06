@@ -125,6 +125,7 @@ Repo owner: run `bash .claude/skills/change_management/scripts/setup_branch_prot
 
 - [`docs/FUNCTIONALITY.md`](docs/FUNCTIONALITY.md) — what the system does day-to-day: trading-day timeline, the cooldown safety floor, master_trading orchestration, the strategy cards, persistence, reporting, common operations.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — how it's built and why: layer responsibilities, tick data flow, skill catalog, state schemas, library API reference, cross-cutting concerns, design decisions.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — staged plan from "deterministic rules" → "per-stock daily research feeding a decision-maker agent". Telegram notifications, intel artifacts per stock, IPO strategy, capitol-trades intelligence, self-learning loop. Includes design grooming, cost analysis, and a PR-sized work tracker.
 - [`CLAUDE.md`](CLAUDE.md) — the hard rules (paper-only, must run configurator first, never commit `.env`, etc.). Loaded automatically by Claude Code.
 - `.claude/skills/<name>/SKILL.md` — per-skill specs (Claude reads these as code-by-prompt at runtime).
 
