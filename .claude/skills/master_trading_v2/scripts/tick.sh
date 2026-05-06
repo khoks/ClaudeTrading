@@ -41,6 +41,8 @@ source "$REPO_ROOT/lib/alpaca.sh"
 source "$REPO_ROOT/lib/calendar.sh"
 # shellcheck disable=SC1091
 source "$REPO_ROOT/lib/pool.sh"
+# shellcheck disable=SC1091
+source "$REPO_ROOT/lib/notify.sh"   # fail-soft; no-op if creds absent
 
 # ---------- Preconditions ----------
 ACT="$REPO_ROOT/persistence/config/activation.json"
@@ -172,6 +174,26 @@ run_phase_b_strategy() {
 run_phase_b_strategy mean_reversion   # selective first
 run_phase_b_strategy ladder_buys      # broad second
 run_phase_b_strategy wheel            # disabled by default; no-op when so
+
+# ---------- Notify (fail-soft; before persistence so operator sees the
+#            order even if the snapshot write later fails) ----------
+ACTION_COUNT=$(jq 'length' <<<"$ACTIONS")
+EXEC_COUNT=$(jq '[.[] | select(.status != "error" and .status != "skipped")] | length' <<<"$ACTIONS")
+if [ "${EXEC_COUNT:-0}" -gt 0 ]; then
+  # Compose a compact human-readable summary. Use plain text (no markdown)
+  # so we don't have to escape ticker symbols, percentages, etc.
+  NOTIFY_MSG=$(jq -r --arg now "$NOW" '
+    "ClaudeTrading tick @ " + $now + "\n" +
+    ([.[] | select(.status != "error" and .status != "skipped")] | map(
+      (.side // "?" | ascii_upcase) + " " +
+      (.symbol // "?") + "  " +
+      (if .notional then "$" + (.notional | tostring) else "qty " + (.qty | tostring) end) +
+      "  " + (.strategy // "?") +
+      (if .reason then " (" + .reason + ")" else "" end)
+    ) | join("\n"))
+  ' <<<"$ACTIONS")
+  NOTIFY_NO_MARKDOWN=1 notify "$NOTIFY_MSG" || true   # always continue
+fi
 
 # ---------- State persistence ----------
 ENVELOPE=$(jq -nc \
