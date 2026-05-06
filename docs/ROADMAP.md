@@ -638,11 +638,11 @@ Item codes use `Px.y-shortname` format. Status: `todo` / `in_progress` / `done` 
 
 | ID | Item | Status | Effort | Depends on | Notes |
 |---|---|---|---|---|---|
-| P1.1-telegram | `lib/notify.sh` + Telegram integration | todo | S | — | Phase 1 |
-| P1.1-tg-tick | Wire `tick.sh` to emit per-action notifications | todo | S | P1.1-telegram | |
-| P1.1-tg-anom | Wire anomaly walk to emit alerts | todo | S | P1.1-telegram | |
-| P1.1-tg-daily | Wire daily report to send summary | todo | S | P1.1-telegram | |
-| P1.1-setup-doc | `docs/SETUP_TELEGRAM.md` walkthrough | todo | XS | P1.1-telegram | |
+| P1.1-telegram | `lib/notify.sh` + Telegram integration | **done** | S | — | Channel-agnostic dispatch; telegram + sms_textbelt channels; fail-soft |
+| P1.1-tg-tick | Wire `tick.sh` to emit per-action notifications | **done** | S | P1.1-telegram | v2 tick.sh notifies after Phase B, before persistence (so operator sees order even if persist fails) |
+| P1.1-tg-anom | Wire anomaly walk to emit alerts | todo | S | P1.1-telegram | Lives in v2 SKILL.md anomaly walk; deferred — not part of this PR |
+| P1.1-tg-daily | Wire daily report to send summary | todo | S | P1.1-telegram | Touches reporting skill; separate PR |
+| P1.1-setup-doc | `docs/SETUP_TELEGRAM.md` walkthrough | **done** | XS | P1.1-telegram | 5-min bot creation walkthrough + chat_id capture + verify |
 | P1.2-earnings | `lib/earnings.sh` + earnings calendar fetcher | todo | S | — | |
 | P1.2-gate | Hook gate into mean_reversion + ladder_buys | todo | S | P1.2-earnings | |
 | P1.3-scaffold | `persistence/intel/` directory + .gitignore | todo | XS | — | |
