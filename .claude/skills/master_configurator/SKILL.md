@@ -1,7 +1,7 @@
 ---
 name: master_configurator
-description: This skill should be used when the user asks to "configure trading", "set up trading system", "initialize trading", "activate the trading bot", or runs `/master_configurator`. Walks the user through the one-time setup of pool, preferences, custom strategies, and prebuilt-strategy parameters, then activates the recurring schedule that drives master_trading and reporting.
-version: 0.1.0
+description: This skill should be used when the user asks to "configure trading", "set up trading system", "initialize trading", "activate the trading bot", or runs `/master_configurator`. Walks the user through the one-time setup: pool, preferences, custom strategies, prebuilt-strategy parameters, **orchestration variant (v1/v2/v3+ — discovered dynamically with pros/cons)**, **optional Telegram notifications** (with end-to-end verification via notify_test), then activates the recurring schedule that drives master_trading and reporting. Re-runnable any time for partial reconfigure (cadence-only, variant-only, notifications-only).
+version: 0.2.0
 ---
 
 # master_configurator
@@ -57,38 +57,99 @@ Activates the ClaudeTrading system from cold. This is the single entry point a u
    - Invoke skill `prebuilt_strategy_configurator` — enables/disables/tunes trailing_stop, ladder_buys, wheel. Writes `persistence/config/strategy_defaults.json`.
 4. **Pick the tick cadence.** Ask the user (AskUserQuestion) how often master_trading should fire during market hours. Sensible options: 5, 10, 15, 30 min. Store the chosen value as `$TICK_CADENCE_MIN` for use in steps 5–7.
 
-5. **Pick the orchestration variant: v1 vs v2.** Ask the user (AskUserQuestion) which trading skill ecosystem to wire to the schedule. Both place real (paper) orders against the same pool with the same H1B cooldown — they only differ in *who* runs the tick orchestration:
+5. **Pick the orchestration variant.** Ask the user (AskUserQuestion) which trading-skill ecosystem to wire to the schedule. The configurator **discovers available variants dynamically** rather than hard-coding a list — this keeps the workflow correct as new variants ship in future PRs (v3, v4, …).
+
+   Discovery:
+   ```bash
+   # Any directory matching master_trading or master_trading_vN is a candidate variant.
+   VARIANTS=()
+   for dir in "$REPO_ROOT/.claude/skills"/master_trading "$REPO_ROOT/.claude/skills"/master_trading_v*/; do
+     [ -d "$dir" ] || continue
+     name=$(basename "$dir")
+     # Strip "master_trading" / "master_trading_v2" → "v1" / "v2"
+     case "$name" in
+       master_trading)     short="v1" ;;
+       master_trading_v*)  short="v${name#master_trading_v}" ;;
+     esac
+     VARIANTS+=("$short:$name")
+   done
+   ```
+
+   For each discovered variant, read the SKILL.md frontmatter `description` field — that's the operator-facing pros/cons summary (each variant's SKILL.md is required to keep its description honest about per-tick cost, what runs the orchestration, and when to pick it). Present them to the operator in a comparison table that the configurator builds at runtime from the discovered SKILL.md descriptions.
+
+   At time of writing the variants are:
 
    | Variant | What runs the tick | Per-tick token cost (measured) | When to pick it |
    |---|---|---|---|
    | **v1** (`master_trading`) | LLM walks each step (market gate → safe_trading → strategies → persistence) as separate tool calls | ~45k input / ~190 output | If you want LLM-mediated step-by-step audit-ability or plan to inject mid-tick judgment via SKILL.md edits. |
-   | **v2** (`master_trading_v2`) | One `tick.sh` runs the entire pipeline mechanically; LLM observes the structured output and surfaces anomalies | ~30k input (target) / similar output | Default for most operators. ~⅓ less token spend per tick. Same trading semantics; same persistence layout. |
+   | **v2** (`master_trading_v2`) | One `tick.sh` runs the entire pipeline mechanically; LLM observes the structured output and surfaces anomalies | ~30k input / similar output | Default for most operators. ~⅓ less token spend per tick. Same trading semantics; same persistence layout. |
 
-   Both ecosystems are fully isolated: v1's `safe_trading`, `strategy_*`, `state_persistence` skills serve only `master_trading`; v2's `_v2`-suffixed twins serve only `master_trading_v2`. `lib/`, `persistence/`, and `.env` are shared (infrastructure, not strategy logic). Switching between variants is reversible at any time by re-running the configurator.
+   Future variants (v3+) will appear here automatically with their own pros/cons drawn from their SKILL.md descriptions — no configurator change required.
 
-   Store the chosen value as `$VARIANT` ∈ `{"v1","v2"}`. Default to `v2` if the user has no preference.
+   All ecosystems are fully isolated: v1's `safe_trading`, `strategy_*`, `state_persistence` skills serve only `master_trading`; v2's `_v2`-suffixed twins serve only `master_trading_v2`; future vN gets its own `_vN`-suffixed skill bundle. `lib/`, `persistence/`, and `.env` are shared (infrastructure, not strategy logic). Switching between variants is reversible at any time by re-running the configurator.
 
-6. **Activate schedules.** Compute the master-tick cron expression from the operator's local timezone — `mcp__scheduled-tasks` evaluates cron in local time, not UTC, so a non-PT operator needs the cron's hour range shifted to their local equivalent of US market hours.
+   Store the chosen short name as `$VARIANT` (e.g. `"v1"`, `"v2"`, `"v3"` …). Default to the highest version number available if the user has no preference (currently `"v2"`).
+
+6. **Optional: configure Telegram notifications.** Ask the user (AskUserQuestion) whether they want push notifications when the system places orders. If yes, walk them through the bot setup; if no/skip, leave `.env` notification fields blank (the lib fails-soft and ticks run silent).
+
+   If the user opts in:
+
+   1. **Show the bot creation steps** in chat (or just point at `docs/SETUP_TELEGRAM.md` for the full walkthrough). Summary:
+      - Open Telegram → search **@BotFather** → `/newbot`
+      - Pick a display name + a globally-unique username ending in `bot`
+      - BotFather replies with a **bot token** (treat like a password)
+      - Open the new bot in Telegram → send `/start` (this authorizes the bot to message you back)
+      - Run `curl "https://api.telegram.org/bot<TOKEN>/getUpdates"` and find `"chat":{"id":...}` — that's the **chat_id**
+
+   2. **Collect the values** via AskUserQuestion (one prompt for the token, one for the chat_id). The configurator never logs them or echoes them in tool output.
+
+   3. **Write to `.env`** — append or update the lines:
+      ```
+      TELEGRAM_BOT_TOKEN=<token>
+      TELEGRAM_CHAT_ID=<chat_id>
+      NOTIFY_DEFAULT_CHANNEL=telegram
+      ```
+      `.env` is gitignored, so the secrets stay local. Use `sed` / `grep`-then-`echo` to update existing lines vs. append; never blow away other lines (e.g. `ALPACA_*`).
+
+   4. **Verify with `notify_test`**:
+      ```bash
+      source "$REPO_ROOT/lib/env.sh"
+      source "$REPO_ROOT/lib/notify.sh"
+      if notify_test; then
+        echo "✓ Telegram test message sent — check your bot chat."
+      else
+        echo "✗ Telegram test failed — see stderr above for the API error."
+        # Offer the user three options: (a) re-enter values, (b) skip and continue,
+        # (c) abort configurator. Most failures are typos or missing /start gesture.
+      fi
+      ```
+
+   If the user opts out (skip), tell them they can add Telegram any time later by editing `.env` directly per `docs/SETUP_TELEGRAM.md` — the configurator does not need to be re-run for notification setup alone.
+
+   **Note**: notification creds live in `.env` (Alpaca-style), not `activation.json`. They're shared across v1, v2, v3 since `lib/notify.sh` is part of the shared infrastructure layer. Switching variants does not require re-entering Telegram creds.
+
+7. **Activate schedules.** Compute the master-tick cron expression from the operator's local timezone — `mcp__scheduled-tasks` evaluates cron in local time, not UTC, so a non-PT operator needs the cron's hour range shifted to their local equivalent of US market hours.
    ```bash
    source "$REPO_ROOT/lib/tz.sh"
    MASTER_CRON=$(market_cron "$TICK_CADENCE_MIN")     # e.g. "*/15 9-15 * * 1-5" for ET
    ```
    If `market_cron` errors (operator's TZ has a half-hour offset from PT, e.g. IST, or wraps past midnight), fall back to AskUserQuestion offering: (a) "I'll set my machine TZ to a US zone and re-run", or (b) "Let me type a cron expression manually".
 
-   Pick the slash command name from `$VARIANT`:
+   Pick the slash command name from `$VARIANT`. v1 maps to the bare `/master_trading` (legacy name); all higher versions map to `/master_trading_<variant>`:
    ```bash
-   if [ "$VARIANT" = "v2" ]; then
-     MASTER_CMD="/master_trading_v2"
-   else
+   if [ "$VARIANT" = "v1" ]; then
      MASTER_CMD="/master_trading"
+   else
+     MASTER_CMD="/master_trading_${VARIANT}"
    fi
    ```
+   This works for any future variant (v3, v4, …) without configurator code change — as long as the corresponding `master_trading_v<N>/SKILL.md` exists, the slash command will resolve correctly.
 
    Then register two cron triggers via `mcp__scheduled-tasks__create_scheduled_task`:
    - `$MASTER_CRON` → runs `$MASTER_CMD`. Skips on holidays via `is_market_open` in the skill / script.
    - `0 7 * * 1-5` → runs `/reporting`. **Note:** the report cron is also local-time. For non-PT operators, 7 AM local time is fine (it's a personal-diagnostic schedule, not market-aligned).
    The scheduled task prompt itself should `cd $REPO_ROOT` then invoke the slash command, since `mcp__scheduled-tasks` does not support env-var injection — `lib/env.sh` will source `.env` from the local repo at fire time.
-7. **Persist activation.** Write `persistence/config/activation.json`. The `tick_cadence_minutes` field is what `lib/calendar.sh::is_last_tick_of_trading_day` reads — keep it in sync with the cron expression in step 6. The `master_trading_variant` field records which ecosystem the live cron task targets (so reconfigure mode and the dashboard can show it):
+8. **Persist activation.** Write `persistence/config/activation.json`. The `tick_cadence_minutes` field is what `lib/calendar.sh::is_last_tick_of_trading_day` reads — keep it in sync with the cron expression in step 7. The `master_trading_variant` field records which ecosystem the live cron task targets (so reconfigure mode and the dashboard can show it):
    ```json
    {
      "configured": true,
@@ -101,11 +162,14 @@ Activates the ClaudeTrading system from cold. This is the single entry point a u
      }
    }
    ```
-8. **No commit.** Per-operator config files (`pool.json`, `activation.json`, `user_preferences.json`, `.claude/settings.json`) are gitignored — they stay local. `strategy_defaults.json` is the only config file that's committed; if you changed it during this run (via `prebuilt_strategy_configurator`), commit + push that change manually. The shipped baseline of `strategy_defaults.json` is what new clones inherit.
+   Notification creds (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `NOTIFY_DEFAULT_CHANNEL`) live in `.env`, not here — they're shared infrastructure across all variants.
 
-9. **Print a confirmation summary** to the user. Include:
-   - Number of stocks in pool, enabled strategies, chosen cadence, **chosen orchestration variant (v1 or v2)**, both schedule IDs, next expected trigger time.
+9. **No commit.** Per-operator config files (`pool.json`, `activation.json`, `user_preferences.json`, `.claude/settings.json`, `.env`) are gitignored — they stay local. `strategy_defaults.json` is the only config file that's committed; if you changed it during this run (via `prebuilt_strategy_configurator`), commit + push that change manually. The shipped baseline of `strategy_defaults.json` is what new clones inherit.
+
+10. **Print a confirmation summary** to the user. Include:
+   - Number of stocks in pool, enabled strategies, chosen cadence, **chosen orchestration variant** (e.g. `v2`), **notification status** (Telegram configured / disabled / verified), both schedule IDs, next expected trigger time.
    - **Resolved cron expression and timezone**, e.g.: "Local TZ detected as `EDT`. Master tick will fire `*/15 9-15 * * 1-5` (every 15 min, 09:00–15:45 your local time, equivalent to 06:00–12:45 PT — covering US market hours from pre-market through 15 min before close). Slash command: `/master_trading_v2` (script-orchestrated; ~30k tokens/tick)."
+   - **Notifications**: e.g. "Telegram bot configured and verified — orders will be pushed to your bot chat. Disable any time via `NOTIFY_DEFAULT_CHANNEL=none` in `.env`." Or, if skipped: "Notifications disabled — see `docs/SETUP_TELEGRAM.md` to enable later."
    - **Disclose the `.claude/settings.json` allowlist** that was bootstrapped (or is currently active) — the user should know what permissions are pre-granted to scheduled-tick sessions:
      - `Bash` (any command — needed because scheduled sessions run compound `&&` chains the granular allowlist can't pre-match)
      - `Bash(<cmd>:*)` granular entries documenting intent (curl, jq, git, gh, bash, source, etc.)
@@ -118,10 +182,12 @@ Activates the ClaudeTrading system from cold. This is the single entry point a u
 
 If `.configured == true` and the user chose RECONFIGURE:
 - Skip step 1's exit branch.
-- Show the operator the current `master_trading_variant` from `activation.json` so they know what they're switching from.
-- In step 6, first `mcp__scheduled-tasks__delete_scheduled_task` for any existing task IDs in `activation.json` before re-creating, to avoid duplicate fires.
+- Show the operator the current `master_trading_variant` from `activation.json` and (read from `.env`) whether Telegram is configured, so they know what's currently in effect.
+- Offer them granular options for what to reconfigure: pool/prefs, strategy tunables, cadence, variant, notifications, or "all of the above". Skip steps the operator declines.
+- In step 7 (activate schedules), first `mcp__scheduled-tasks__delete_scheduled_task` for any existing task IDs in `activation.json` before re-creating, to avoid duplicate fires.
 - **For pure cadence changes (no variant switch)**, prefer `mcp__scheduled-tasks__update_scheduled_task` with a new `cronExpression` and update `tick_cadence_minutes` in activation.json — no need to delete and recreate.
-- **For variant switch (v1 ↔ v2)**, the slash command in the cron task body changes (`/master_trading` ↔ `/master_trading_v2`), so use `mcp__scheduled-tasks__update_scheduled_task` to rewrite both the prompt and (optionally) the cron, OR delete + recreate. Either works; the dashboard reads the new `master_trading_variant` from `activation.json` regardless.
+- **For variant switch (e.g. v1 ↔ v2, or v2 → v3)**, the slash command in the cron task body changes (`/master_trading` ↔ `/master_trading_<variant>`). Use `mcp__scheduled-tasks__update_scheduled_task` to rewrite the prompt; the cron schedule itself can stay. The dashboard reads the new `master_trading_variant` from `activation.json` regardless.
+- **For notification reconfigure**, jump straight to step 6 (Telegram setup) and re-prompt for token/chat_id, then `notify_test`. The schedule activation in step 7 can be skipped if nothing else changed.
 
 ## Refusal cases
 
