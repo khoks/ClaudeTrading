@@ -643,6 +643,7 @@ Item codes use `Px.y-shortname` format. Status: `todo` / `in_progress` / `done` 
 | P1.1-tg-anom | Wire anomaly walk to emit alerts | todo | S | P1.1-telegram | Lives in v2 SKILL.md anomaly walk; deferred — not part of this PR |
 | P1.1-tg-daily | Wire daily report to send summary | todo | S | P1.1-telegram | Touches reporting skill; separate PR |
 | P1.1-setup-doc | `docs/SETUP_TELEGRAM.md` walkthrough | **done** | XS | P1.1-telegram | 5-min bot creation walkthrough + chat_id capture + verify |
+| P1.1-configurator | Wire Telegram setup + dynamic variant discovery into `master_configurator` | **done** | S | P1.1-telegram | Step 5 (variant) discovers `master_trading_v*` skills dynamically (future-proof for v3+); step 6 (NEW, optional) walks operator through @BotFather + chat_id + writes `.env` + verifies via `notify_test`. Reconfigure mode supports notification-only or variant-only re-runs. |
 | P1.2-earnings | `lib/earnings.sh` + earnings calendar fetcher | todo | S | — | |
 | P1.2-gate | Hook gate into mean_reversion + ladder_buys | todo | S | P1.2-earnings | |
 | P1.3-scaffold | `persistence/intel/` directory + .gitignore | todo | XS | — | |
