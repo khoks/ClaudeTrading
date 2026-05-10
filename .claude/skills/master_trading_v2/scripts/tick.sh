@@ -74,6 +74,18 @@ fi
 SELLABLE=$(jq -c '.sellable' <<<"$SETS")
 BUYABLE=$(jq -c  '.buyable'  <<<"$SETS")
 
+# ---------- Pre-tick state snapshot ----------
+# Capture pool fields that strategies mutate WITHOUT placing an order
+# (trailing_stop bumps watermark + stop on every up-move; ladder_buys
+# initializes baselines; profit_take updates fired_thresholds). After
+# Phase B we diff against this to surface "silent" state changes that
+# the per-action notification wouldn't otherwise mention.
+PRE_TICK_STATE=$(jq -c '[.stocks[] | {
+  symbol: .symbol,
+  high_watermark: .high_watermark,
+  stop_loss_price: (.stop_loss.price // null)
+}]' "$REPO_ROOT/persistence/pool.json")
+
 # ---------- Strategy plumbing ----------
 DEFAULTS_FILE="$REPO_ROOT/persistence/config/strategy_defaults.json"
 
@@ -193,6 +205,88 @@ if [ "${EXEC_COUNT:-0}" -gt 0 ]; then
     ) | join("\n"))
   ' <<<"$ACTIONS")
   NOTIFY_NO_MARKDOWN=1 notify "$NOTIFY_MSG" || true   # always continue
+fi
+
+# ---------- State-change notification (silent mutations) ----------
+# When a strategy adjusts watermark / stop_loss but DOESN'T place an order
+# (typical trailing_stop behavior on an up-tick), surface that to the
+# operator. Diff PRE_TICK_STATE vs the now-current pool.json. Skip symbols
+# that already appeared in the per-action notification above (the order
+# message implies the state change). Tunable via:
+#   NOTIFY_STATE_CHANGES=0                    — silence state notifications entirely
+#   NOTIFY_STATE_CHANGE_PCT_THRESHOLD=1.0     — min % change to be considered "material"
+NOTIFY_STATE_CHANGES="${NOTIFY_STATE_CHANGES:-1}"
+NOTIFY_STATE_CHANGE_PCT_THRESHOLD="${NOTIFY_STATE_CHANGE_PCT_THRESHOLD:-1.0}"
+
+if [ "$NOTIFY_STATE_CHANGES" = "1" ]; then
+  POST_TICK_STATE=$(jq -c '[.stocks[] | {
+    symbol: .symbol,
+    high_watermark: .high_watermark,
+    stop_loss_price: (.stop_loss.price // null)
+  }]' "$REPO_ROOT/persistence/pool.json")
+
+  TOUCHED_SYMS=$(jq -nc \
+    --argjson sold "$SOLD_THIS_TICK" \
+    --argjson bought "$BOUGHT_THIS_TICK" \
+    '($sold + $bought) | unique')
+
+  # Compute material state changes per symbol. jq filter:
+  #  - For each post-tick entry, find matching pre-tick entry.
+  #  - Skip symbols already in TOUCHED_SYMS (covered by the order msg).
+  #  - For each watched field, emit a human-readable change line if:
+  #      a) was null, is now numeric → "<field> initialized at <value>"
+  #      b) numeric → numeric with |delta_pct| >= threshold → "<field> X → Y (±Z%)"
+  #  - Drop symbols with no changes.
+  STATE_CHANGES=$(jq -nc \
+    --argjson pre "$PRE_TICK_STATE" \
+    --argjson post "$POST_TICK_STATE" \
+    --argjson touched "$TOUCHED_SYMS" \
+    --argjson pct_thresh "$NOTIFY_STATE_CHANGE_PCT_THRESHOLD" \
+    '
+    def fmt_money(v): "$" + (v * 100 | round / 100 | tostring);
+    def fmt_pct_delta(a; b):
+      if a == null or a == 0 then ""
+      else (((b - a) / a) * 100) as $d
+        | (if $d > 0 then "+" else "" end)
+          + (($d * 100 | round / 100) | tostring) + "%"
+      end;
+    def material_change(name; before; after):
+      if before == null and after != null then
+        name + " initialized at " + fmt_money(after)
+      elif before != null and after != null and before != after then
+        ((((after - before) / before) * 100) | fabs) as $abs_d
+        | if $abs_d >= $pct_thresh then
+            name + " " + fmt_money(before) + " → " + fmt_money(after)
+              + " (" + fmt_pct_delta(before; after) + ")"
+          else null
+          end
+      else null
+      end;
+    [ $post[] | . as $p
+      | ([$pre[] | select(.symbol == $p.symbol)] | first) as $b
+      | ($p.symbol as $s | any($touched[]; . == $s)) as $already
+      | if $already then empty
+        else
+          {
+            symbol: $p.symbol,
+            changes: [
+              material_change("high watermark"; $b.high_watermark; $p.high_watermark),
+              material_change("stop"; $b.stop_loss_price; $p.stop_loss_price)
+            ] | map(select(. != null))
+          }
+          | select(.changes | length > 0)
+        end
+    ]
+    ')
+
+  STATE_CHANGE_COUNT=$(jq 'length' <<<"$STATE_CHANGES")
+  if [ "${STATE_CHANGE_COUNT:-0}" -gt 0 ]; then
+    STATE_MSG=$(jq -r --arg now "$NOW" '
+      "ClaudeTrading state @ " + $now + "\n" +
+      ([.[] | (.symbol + ": " + (.changes | join("; ")))] | join("\n"))
+    ' <<<"$STATE_CHANGES")
+    NOTIFY_NO_MARKDOWN=1 notify "$STATE_MSG" || true
+  fi
 fi
 
 # ---------- State persistence ----------
