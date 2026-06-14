@@ -21,7 +21,9 @@
   "ladder_buys": {
     "enabled": true,
     "drop_percent": 12,
-    "buy_amount_usd": 500
+    "buy_amount_usd": 500,
+    "max_rungs": 4,
+    "max_position_usd": 2000
   },
   "wheel": {
     "enabled": false,

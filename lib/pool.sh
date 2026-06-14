@@ -13,7 +13,7 @@
 #       "stop_loss":   { "price": null, "trail_percent": null },
 #       "strategy_config": {
 #         "trailing_stop": {},
-#         "ladder_buys": {},
+#         "ladder_buys": { "consecutive_buys": 0, "consecutive_invested_usd": 0 },
 #         "wheel": {},
 #         "mean_reversion": {},
 #         "profit_take": { "fired_thresholds": [], "baseline_qty": null, "last_baseline_at": null }
@@ -79,7 +79,7 @@ pool_add_stock() {
       stop_loss: { price: null, trail_percent: null },
       strategy_config: {
         trailing_stop: {},
-        ladder_buys: {},
+        ladder_buys: { consecutive_buys: 0, consecutive_invested_usd: 0 },
         wheel: {},
         mean_reversion: {},
         profit_take: { fired_thresholds: [], baseline_qty: null, last_baseline_at: null }
@@ -105,7 +105,29 @@ pool_set_last_buy() {
   pool_write "$updated"
 }
 
+# pool_increment_ladder_consecutive <symbol> <amount_usd>
+# Bumps the ladder_buys counters after a buy: rung count +1, invested notional
+# += amount_usd. Treats missing fields as 0 so this is safe to call on stocks
+# whose strategy_config.ladder_buys was previously {} (pre-counter pool).
+pool_increment_ladder_consecutive() {
+  local s="$1" amt="$2" updated
+  updated=$(pool_read | jq --arg s "$s" --argjson amt "$amt" '
+    .stocks |= map(
+      if .symbol == $s then
+        .strategy_config.ladder_buys.consecutive_buys =
+          ((.strategy_config.ladder_buys.consecutive_buys // 0) + 1)
+        | .strategy_config.ladder_buys.consecutive_invested_usd =
+          ((.strategy_config.ladder_buys.consecutive_invested_usd // 0) + $amt)
+      else . end
+    )')
+  pool_write "$updated"
+}
+
 # pool_set_last_sell <symbol> <iso_ts> <price> <qty> <amount_usd> <profit_delta>
+# Also resets the ladder_buys consecutive counters so the next drawdown gets
+# a fresh ladder budget. This applies to any sell — partial (profit_take) or
+# full (trailing_stop) — because either way the operator has signalled the
+# previous accumulation cycle is closing out.
 pool_set_last_sell() {
   local s="$1" ts="$2" price="$3" qty="$4" amt="$5" profit="${6:-0}" updated
   updated=$(pool_read | jq \
@@ -116,6 +138,8 @@ pool_set_last_sell() {
       if .symbol == $s then
         .last_sell = { timestamp: $ts, price: $price, qty: $qty, amount_usd: $amt }
         | .total_profit_usd += $profit
+        | .strategy_config.ladder_buys.consecutive_buys = 0
+        | .strategy_config.ladder_buys.consecutive_invested_usd = 0
       else . end
     )')
   pool_write "$updated"
